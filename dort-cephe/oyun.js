@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {SES} from './ses.js?v=20261112b';
+import {SES} from './ses.js?v=20261119a';
 /* Dört Cephe. Each client simulates its own square (and any computer rivals);
    units sent to a player are simulated by that player. Others see 2 snapshots a second. */
 const A=window.ARENA,EN=window.LANG==='en',TL=(t,e)=>EN?e:t;
@@ -10,7 +10,7 @@ const num=(v,d=0)=>typeof v==='number'&&isFinite(v)?v:d;
 // ---------- rules ----------
 let BUILD_T={denizalti:16,gemi:20},TBUILD={ok:7,top:10,hava:9,roket:14,duvar:2.5},WMAX=12,RUNWAY_COST=200,MS_COST=100,MS_T=10,MS_HP=120,RUNWAY_T=12,YARD_COST=100,YARD_T=15,MAX_SHIPS=4,PLANE_T=12,SHIP_SEE=80,SHIP_STAND=95,SUB_TIME=16,WALL=3,START_MONEY=200*2.5,CASTLE_HP=500,TRICKLE=0.5,MAX_TOWERS=40;
 // a base trains one soldier at a time and fields a limited army, so nobody can flood the map
-let TRAIN={piyade:2,atli:3,koc:7,balon:6},POP={piyade:1,atli:1,koc:3,balon:2},POP_CAP=40,FUZE_CD=6,DBR_FIX=100,VER='38';
+let TRAIN={piyade:2,atli:3,koc:7,balon:6},POP={piyade:1,atli:1,koc:3,balon:2},POP_CAP=40,FUZE_CD=6,DBR_FIX=100,VER='39';
 // the lesson: an empty 1v1 map where nothing costs anything and nothing has to be waited for
 const TUT=!!(A&&A.tutorial);
 if(TUT){BUILD_T={denizalti:.5,gemi:.5};for(const k in TBUILD)TBUILD[k]=.2;RUNWAY_T=YARD_T=PLANE_T=.5;FUZE_CD=.5;TRAIN={piyade:.2,atli:.2,koc:.2,balon:.2}}
@@ -735,15 +735,15 @@ function scanFoes(D){
   // balloons drift apart from each other instead of stacking up in one spot
   for(const a of D.units){if(a.type!=='balon'||a.fall!=null||a.done)continue;for(const b of D.units){if(b===a||b.type!=='balon'||b.fall!=null||b.done)continue;const dx=b.x-a.x,dz=b.z-a.z,d=Math.hypot(dx,dz)||.01;if(d<8.5){const k=(8.5-d)/d*.4;a.x-=dx*k;a.z-=dz*k;b.x+=dx*k;b.z+=dz*k;a.lx-=dx*k;a.lz-=dz*k;b.lx+=dx*k;b.lz+=dz*k}}}
   const n=D.units.length;
-  for(let i=0;i<n;i++){const a=D.units[i];if(!fighter(a.type)||a.ret)continue;const ra=a.type==='koc'?2.3:a.type==='atli'?1.8:.95;
-    for(let j=i+1;j<n;j++){const b=D.units[j];if(!fighter(b.type)||b.ret)continue;const m=ra+(b.type==='koc'?2.3:b.type==='atli'?1.8:.95),dx=b.x-a.x,dz=b.z-a.z,d=Math.hypot(dx,dz)||.01;
+  for(let i=0;i<n;i++){const a=D.units[i];if(!fighter(a.type)||a.ret)continue;const ra=a.type==='koc'?2.3:a.type==='atli'?2.2:.95;
+    for(let j=i+1;j<n;j++){const b=D.units[j];if(!fighter(b.type)||b.ret)continue;const m=ra+(b.type==='koc'?2.3:b.type==='atli'?2.2:.95),dx=b.x-a.x,dz=b.z-a.z,d=Math.hypot(dx,dz)||.01;
       if(d<m){const k=(m-d)/d*5;a.vx-=dx*k;a.vz-=dz*k;b.vx+=dx*k;b.vz+=dz*k;
-        if((a.type==='koc'||b.type==='koc'||d<m*.6)&&!a.road&&!b.road){const h=(m-d)/d*.25,ax=a.x-dx*h,az=a.z-dz*h,bx=b.x+dx*h,bz=b.z+dz*h;if(canStand(a,ax,az)){a.x=ax;a.z=az}if(canStand(b,bx,bz)){b.x=bx;b.z=bz}}}}}     // big bodies are pushed apart outright, never left overlapping
+        if((a.type==='koc'||b.type==='koc'||a.type==='atli'||b.type==='atli'||d<m*.6)&&!a.road&&!b.road){const h=(m-d)/d*.25,ax=a.x-dx*h,az=a.z-dz*h,bx=b.x+dx*h,bz=b.z+dz*h;if(canStand(a,ax,az)){a.x=ax;a.z=az}if(canStand(b,bx,bz)){b.x=bx;b.z=bz}}}}}     // big bodies are pushed apart outright, never left overlapping
   // foes don't melt into each other either: a knight striking a ram stands at its nose, not inside it
-  const BR=t=>t==='koc'?2.9:t==='atli'?1.6:1;
+  const BR=t=>t==='koc'?2.9:t==='atli'?2.2:1;
   for(const a of D.units){if(!fighter(a.type)||a.ret||a.fall!=null||a.type==='balon'||a.type==='isci')continue;const ra=BR(a.type);
     for(const e of all){if(e.nav||e.type==='balon'||e.type==='isci'||allied(e.from,a.from))continue;const dx=e.x-a.x,dz=e.z-a.z;if(Math.abs(dx)>6||Math.abs(dz)>6)continue;const m=ra+BR(e.type),d=Math.hypot(dx,dz)||.01;
-      if(d<m){const k=(m-d)/d*6;a.vx-=dx*k;a.vz-=dz*k}}}
+      if(d<m){const k=(m-d)/d*6;a.vx-=dx*k;a.vz-=dz*k;if(a.type==='atli'||e.type==='atli'||a.type==='koc'||e.type==='koc'){const h=(m-d)/d*.5,nx=a.x-dx*h,nz=a.z-dz*h;if(canStand(a,nx,nz)){a.x=nx;a.z=nz}}}}}
 }
 // frogmen throw smoke grenades in front of guns that cover their way in; nothing in the smoke can be aimed at
 const inSmoke=(D,x,z)=>{const S=D.smk;if(!S||!S.length)return false;for(const q of S)if((x-q.x)**2+(z-q.z)**2<q.r*q.r)return true;return false};
@@ -773,6 +773,12 @@ function drawSmoke(dt){for(const D of P){const S=D.smk;if(!S)continue;for(const 
 // nobody walks through a tower: soldiers, riders and rams step round them (and round walls too, unless marching down the road)
 // a man fighting a ram keeps clear of its iron nose: in front he stands off, at the flanks he can close in
 function ramGap(u,e){const r=e.ref;if(!r)return 2;const f=r.dir??r.face??0,dx=u.x-r.x,dz=u.z-r.z,l=Math.hypot(dx,dz)||1,c=(Math.sin(f)*dx+Math.cos(f)*dz)/l;return c>.45?4.4:1.2}
+// every frame: horses and rams are hard bodies — any two that overlap are pushed apart at once, friend or foe, so heads never pass into heads
+function bigSep(D){const R2=t=>t==='atli'?2.15:t==='koc'?2.4:t==='piyade'||t==='dalgic'?.75:0;
+  for(const a of D.units){const ra=R2(a.type);if(!ra||a.done||a.fall!=null||a.sink!=null||a.emerge>0)continue;
+    for(const O of P){if(!O.on||!local(O))continue;for(const b of O.units){if(b===a)continue;const rb=R2(b.type);if(!rb||b.done||b.fall!=null||b.sink!=null||(rb<1&&ra<1))continue;const m=ra+rb,dx=b.x-a.x,dz=b.z-a.z;if(Math.abs(dx)>m||Math.abs(dz)>m)continue;const d=Math.hypot(dx,dz)||.01;if(d>=m)continue;
+      // the smaller body gives way; two equals share the shove
+      const ka=ra<rb?1:ra>rb?0:.5,h=(m-d)/d;const ax=a.x-dx*h*ka,az=a.z-dz*h*ka;if(ka&&canStand(a,ax,az)){a.x=ax;a.z=az;if(a.lx!=null){a.lx-=dx*h*ka;a.lz-=dz*h*ka}}}}}}
 function towerOut(D){if(!D.towers.length)return;
   for(const u of D.units){if(u.done||u.fall!=null||u.ret)continue;const own=allied(u.from,D.seat),Y=UNITS[u.type].yol;if(Y!=='kara'&&Y!=='su')continue;const ur=u.type==='koc'?2.2:u.type==='atli'?1.4:.7;
     for(const t of D.towers){const wall=t.type==='duvar';if(wall&&u.road&&own)continue;const r=(wall?1.4:2.3)+ur,dx=u.x-t.x,dz=u.z-t.z;if(Math.abs(dx)>r||Math.abs(dz)>r)continue;const d=Math.hypot(dx,dz)||.01;
@@ -882,7 +888,7 @@ function simDefender(D,dt){
         continue}}
     if(u.foe&&u.foe.ref&&(u.foe.ref.hp<=0||u.foe.ref.done||u.foe.ref.ret)){const L=u.lock!=null;u.foe=null;u.lock=null;if(L&&!relock(u,D))standHere(u)}
     if(u.foe){
-      const e=u.foe,ex=e.ref?e.ref.x:e.x,ez=e.ref?e.ref.z:e.z,d=Math.hypot(ex-u.x,ez-u.z),gun=u.type==='dalgic',gap=(u.type==='koc'?(e.nav?4:6.4):gun?11:2.4)+(e.nav?3.8:0)+(gun?0:e.type==='koc'?(u.type==='koc'?1:ramGap(u,e)):e.type==='atli'&&u.type==='piyade'?.5:0);u.face=Math.atan2(ex-u.x,ez-u.z);
+      const e=u.foe,ex=e.ref?e.ref.x:e.x,ez=e.ref?e.ref.z:e.z,d=Math.hypot(ex-u.x,ez-u.z),gun=u.type==='dalgic',gap=(u.type==='koc'?(e.nav?4:6.4):gun?11:2.4)+(e.nav?3.8:0)+(gun?0:e.type==='koc'?(u.type==='koc'?1:ramGap(u,e)):u.type==='atli'&&e.type==='atli'?2.2:u.type==='atli'||e.type==='atli'?1.1:0);     // horses are long: riders meet lance-to-lance, never head inside headu.face=Math.atan2(ex-u.x,ez-u.z);
       if(d>gap){const k=Math.min(d-gap+.2,step*1.2),nx=u.x+(ex-u.x)/d*k,nz=u.z+(ez-u.z)/d*k;u.atk=false;
         if(canStand(u,nx,nz)){if(!u.off)u.dep={x:u.x,z:u.z};u.x=nx;u.z=nz;u.off=true;u.reS=false;u.stuck=0}
         else if((u.stuck=(u.stuck||0)+dt)>(u.lock!=null?12:3)){u.ign=e.id;u.ignT=now()+8000;if(u.lock!=null){standHere(u);if(D===ME&&u.from===ME.seat&&now()-(lockTipT||0)>4000){lockTipT=now();tip(TL('Askerlerin oraya yetişemiyor (su). Balon, gemi ya da füze gönder.','Your troops cannot reach it (water). Send balloons, a ship or a missile.'))}}u.foe=null;u.lock=null;u.stuck=0}
@@ -945,7 +951,7 @@ function simDefender(D,dt){
     u.moving=!u.atk&&!(u.s>=u.end&&!u.tgt&&!u.off);
     if(!air&&!u.road&&(u.vx||u.vz)){const nx=u.x+u.vx*dt,nz=u.z+u.vz*dt;if(canStand(u,nx,nz)){u.x=nx;u.z=nz}}u.road=false;   // jostling never shoves anyone off a bridge
   }
-  navalSep(D,dt);
+  navalSep(D,dt);bigSep(D);
   if(!DEAD)for(const t of D.towers){
     const T=TOWERS[t.type];if(T.duvar||(t.bt>0&&!t.up))continue;t.cd-=dt;const HD=HEAD[t.type];
     // the head keeps tracking its target between shots, and only fires once it is pointing at it
@@ -1255,7 +1261,7 @@ function detailTile(){
   const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=renderer.capabilities.getMaxAnisotropy();return t;
 }
 function buildGround(){
-  const N=small?340:600,geo=new THREE.PlaneGeometry(L*2+16,L*2+16,N,N);geo.rotateX(-Math.PI/2);
+  const N=small?260:520,geo=new THREE.PlaneGeometry(L*2+16,L*2+16,N,N);geo.rotateX(-Math.PI/2);
   const p=geo.attributes.position;for(let i=0;i<p.count;i++)p.setY(i,heightAt(p.getX(i),p.getZ(i)));geo.computeVertexNormals();geo.setAttribute('aDark',new THREE.BufferAttribute(new Float32Array(p.count),1));
   const c=paintGround(),map=new THREE.CanvasTexture(c);map.colorSpace=THREE.SRGBColorSpace;map.anisotropy=renderer.capabilities.getMaxAnisotropy();
   const mat=new THREE.MeshStandardMaterial({map,roughness:.95,metalness:0,bumpMap:map,bumpScale:small?.5:.9}),dtl=detailTile();
@@ -1276,7 +1282,7 @@ function bankTex(){
   const t=new THREE.DataTexture(d,n,n,THREE.RedFormat,THREE.HalfFloatType);t.magFilter=t.minFilter=THREE.LinearFilter;t.needsUpdate=true;return t;
 }
 function buildOuter(){                 // one seamless sheet from the sea floor out to the mountains, finest near the middle
-  const N=small?300:420,E=1150,geo=new THREE.PlaneGeometry(2,2,N,N).rotateX(-Math.PI/2),p=geo.attributes.position,uv=geo.attributes.uv,sa=new Float32Array(p.count),se=new Float32Array(p.count);
+  const N=small?220:380,E=1150,geo=new THREE.PlaneGeometry(2,2,N,N).rotateX(-Math.PI/2),p=geo.attributes.position,uv=geo.attributes.uv,sa=new Float32Array(p.count),se=new Float32Array(p.count);
   const warp=u=>Math.sign(u)*E*Math.pow(Math.abs(u),1.6);
   for(let i=0;i<p.count;i++){const x=warp(p.getX(i)),z=warp(p.getZ(i)),d=outerD(x,z);p.setXYZ(i,x,landH(x,z),z);uv.setXY(i,x/34,z/34);sa[i]=1-smooth(4,14,d);se[i]=d<0?1:0}
   geo.setAttribute('aSand',new THREE.BufferAttribute(sa,1));geo.setAttribute('aSea',new THREE.BufferAttribute(se,1));geo.computeVertexNormals();geo.computeBoundingSphere();
@@ -2228,6 +2234,17 @@ function horseGeo(ph,run){
   {keep=1;const a0=V(-.52,Y(2.75),-.55),a1=V(-.52,Y(2.45),2.75);limb(a0,a1,.05,.04,'#7a5a3a',8);const tp=new THREE.ConeGeometry(.07,.42,8);tp.rotateX(Math.PI/2-.09);tp.translate(a1.x,a1.y-.02,a1.z+.2);put(tp,'#c8ccd2');
     const gd=new THREE.ConeGeometry(.16,.4,10,1,true);gd.rotateX(Math.PI/2-.09);gd.translate(-.5,Y(2.86),-.1);put(gd,'#9aa0a8');
     const pn=new THREE.BufferGeometry();const px=a1.x,py=a1.y+.03,pz=a1.z-.35,fl=run?Math.sin(T*4)*.06:0;pn.setAttribute('position',new THREE.Float32BufferAttribute([px,py,pz, px,py+.32,pz-.08, px+fl,py+.16,pz-.6],3));put(pn,'#e8e2d0');keep=0}
+  // war harness after the old barding: a steel chanfron down the face, a peytral plate round the breast, a crupper of two plates over the haunches, all edged in brass
+  {keep=1;const ST='#b9c0c8',BR='#c9a443',hd=V(0,-.62,.62).normalize(),up=V(0,.62,.62).normalize();
+    {const c=new THREE.BoxGeometry(.27,.04,.66);c.rotateX(Math.PI/4);const p0=poll.clone().addScaledVector(hd,.42).addScaledVector(up,.15);c.translate(p0.x,p0.y,p0.z);put(c,ST);
+     for(const sd of[-1,1]){const ch=new THREE.BoxGeometry(.03,.2,.36);ch.rotateX(Math.PI/4);const q=poll.clone().addScaledVector(hd,.3).add(V(sd*.16,-.02,0));ch.translate(q.x,q.y,q.z);put(ch,ST)}
+     const sp=new THREE.ConeGeometry(.045,.16,6);sp.rotateX(-Math.PI/4);const q=poll.clone().addScaledVector(hd,.28).addScaledVector(up,.2);sp.translate(q.x,q.y,q.z);put(sp,BR)}
+    {const pe=new THREE.CylinderGeometry(.52,.56,.42,24,1,true,-1.15,2.3);pe.scale(1,1,.95);pe.translate(0,Y(1.86),.92);put(pe,ST);for(const y of[2.07,1.65]){const r=new THREE.CylinderGeometry(.535,.545,.05,24,1,true,-1.17,2.34);r.scale(1,1,.95);r.translate(0,Y(y),.92);put(r,BR)}
+     const boss=new THREE.SphereGeometry(.08,10,8);boss.translate(0,Y(1.86),1.42);put(boss,BR)}
+    {const cr=new THREE.CylinderGeometry(.6,.6,.85,24,1,true,Math.PI-1.75,3.5);cr.rotateX(Math.PI/2);cr.translate(0,Y(1.98),-1.15);put(cr,ST);for(const z of[-1.56,-.74]){const r=new THREE.CylinderGeometry(.615,.615,.05,24,1,true,Math.PI-1.77,3.54);r.rotateX(Math.PI/2);r.translate(0,Y(1.98),z);put(r,BR)}}
+    keep=0}
+  // a long mane falling to one side of the neck, in locks
+  for(let k=0;k<9;k++){const t=k/8,p0=V(.05,Y(2.36+t*.5+nk*t),1.1+t*.82+nk*.3*t),sw=run?Math.sin(T*2+k*.7)*.05:0;tube([p0,p0.clone().add(V(.14,-.2,.02+sw)),p0.clone().add(V(.2,-.42+t*.1,.05+sw*1.6))],[[.045,.08],[.04,.065],[.012,.02]],DK,5)}
   // saddle and blanket under the rider
   {keep=1;const bl=new THREE.CylinderGeometry(.57,.57,1.05,20,1,true,-1.15,2.3);bl.rotateX(Math.PI/2);bl.rotateZ(Math.PI/2);bl.scale(1,1.1,1);bl.translate(0,Y(1.93),.18);put(bl,'#7a2a20');
     const tr=new THREE.CylinderGeometry(.575,.575,.06,20,1,true,-1.15,2.3);tr.rotateX(Math.PI/2);tr.rotateZ(Math.PI/2);tr.scale(1,1.1,1);for(const z of[-.33,.69]){const t2=tr.clone();t2.translate(0,Y(1.93),z);put(t2,'#c9a443')}
@@ -2238,7 +2255,7 @@ function horseGeo(ph,run){
   for(const g of parts){P3.set(g.attributes.position.array,o*3);N3.set(g.attributes.normal.array,o*3);const ca=g.attributes.color.array;for(let i=0;i<g.attributes.position.count;i++){C3[(o+i)*3]=ca[i*4];C3[(o+i)*3+1]=ca[i*4+1];C3[(o+i)*3+2]=ca[i*4+2];K1[o+i]=ca[i*4+3]}o+=g.attributes.position.count;g.dispose()}
   let mn=1e9;for(let i=1;i<P3.length;i+=3)mn=Math.min(mn,P3[i]);if(!run)for(let i=1;i<P3.length;i+=3)P3[i]-=mn;     // standing: hooves on the ground
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(P3,3));g.setAttribute('normal',new THREE.BufferAttribute(N3,3));g.setAttribute('color',new THREE.BufferAttribute(C3,3));g.setAttribute('aKeep',new THREE.BufferAttribute(K1,1));g.computeBoundingSphere();return g}
-function horseClips(){const mat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.6,metalness:0});mat.onBeforeCompile=sh=>{sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nattribute float aKeep;').replace('#include <color_vertex>','#include <color_vertex>\nvColor.rgb=mix(vColor.rgb,color.rgb,aKeep);');sh.fragmentShader=sh.fragmentShader.replace('#include <opaque_fragment>',RIM+'#include <opaque_fragment>')};
+function horseClips(){const mat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.6,metalness:0,side:THREE.DoubleSide});mat.onBeforeCompile=sh=>{sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nattribute float aKeep;').replace('#include <color_vertex>','#include <color_vertex>\nvColor.rgb=mix(vColor.rgb,color.rgb,aKeep);');sh.fragmentShader=sh.fragmentShader.replace('#include <opaque_fragment>',RIM+'#include <opaque_fragment>')};
   const mk=g=>{const m=new THREE.InstancedMesh(g,mat,CHR_CAP);m.castShadow=true;m.frustumCulled=false;m.count=0;m.visible=false;m.setColorAt(0,new THREE.Color('#fff'));m.userData.n=0;scene.add(m);return m};
   const walk=[];for(let f=0;f<12;f++)walk.push(mk(horseGeo(f/12,true)));const idle=[];for(let f=0;f<8;f++)idle.push(mk(horseGeo(f/8,false)));return{walk,idle}}
 const COATS=['#7a4524','#5a3018','#8f5a2e','#2b2420','#b9a48a','#6b4a33','#a06a3a','#ece6dc'].map(c=>new THREE.Color(c));
@@ -2596,13 +2613,16 @@ function drawBirds(){if(!BIRDS){const mk=up=>{     // a gull: a white body and h
       mt.compose(vp.set(x,y,z),qr.setFromEuler(new THREE.Euler(Math.sin(T*.7+k)*.08,hd+Math.sin(T*.5+k*1.3)*.25,Math.sin(T*.9+k)*.3)),vs.set(1.5,1.5,1.5));vs.set(1,1,1);const up=(T*.45+k*.37)%4<.9?Math.sin(T*7+k*1.3)>0:true;
       if(up&&na<40)BIRDS.a.setMatrixAt(na++,mt);else if(nb<40)BIRDS.b.setMatrixAt(nb++,mt)}}
   BIRDS.a.count=na;BIRDS.b.count=nb;BIRDS.a.instanceMatrix.needsUpdate=BIRDS.b.instanceMatrix.needsUpdate=true;drawWind(T)}
-// from high up the wind shows: long faint streaks of air sliding over the sea and land
+// from high up the wind shows: straight thin streaks of air in a few gusts that drift across the map; now and then a gust leans a little to one side
 let WINDM=null;
-function drawWind(T){const far=clamp((view.d-170)/160,0,1);if(!WINDM){const g=new THREE.PlaneGeometry(1,1,1,24).rotateX(-Math.PI/2);{const P=g.attributes.position;for(let i=0;i<P.count;i++){const z=P.getZ(i),w=1-Math.abs(z*2)**2;P.setX(i,P.getX(i)*w*.12+Math.sin(z*Math.PI*2.2)*1);P.setY(i,Math.sin(z*Math.PI*3+1)*.4)}}     // each streak a thin, tapered, gently wavy curl of air
-  const m=new THREE.MeshBasicMaterial({color:'#ffffff',transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending});WINDM=new THREE.InstancedMesh(g,m,60);WINDM.frustumCulled=false;scene.add(WINDM)}
-  WINDM.visible=far>0;if(!far)return;WINDM.material.opacity=.3*far;const wx=Math.cos(.6),wz=Math.sin(.6),span=900;let n=0;
-  for(let k=0;k<60;k++){const ph=(T*(22+k%7*3)+k*137)%span-span/2,side=((k*97)%span)-span/2,x=view.x+wx*ph-wz*side,z=view.z+wz*ph+wx*side,y=30+(k%5)*4,len=26+(k%4)*12,a=Math.sin(Math.PI*((ph+span/2)/span));
-    qr.setFromAxisAngle(UP,Math.atan2(wx,wz)+Math.sin(T*.3+k)*.12);mt.compose(vp.set(x,y,z),qr,vs.set((2.5+a*2)*(1+.6*Math.sin(T*.7+k*1.3)),1+Math.sin(T+k)*2,len*a+1));WINDM.setMatrixAt(n++,mt)}vs.set(1,1,1);WINDM.count=n;WINDM.instanceMatrix.needsUpdate=true}
+function drawWind(T){const far=clamp((view.d-120)/140,0,1);if(!WINDM){const g=new THREE.PlaneGeometry(1,1,1,10).rotateX(-Math.PI/2);{const P=g.attributes.position;for(let i=0;i<P.count;i++){const z=P.getZ(i);P.setX(i,P.getX(i)*(1-Math.abs(z*2)**2))}}
+    const m=new THREE.MeshBasicMaterial({color:'#ffffff',transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending});WINDM=new THREE.InstancedMesh(g,m,48);WINDM.frustumCulled=false;scene.add(WINDM)}
+  WINDM.visible=far>0;if(!far)return;WINDM.material.opacity=.28*far;const W0=.6,span=760;let n=0;
+  for(let gst=0;gst<4;gst++){const lean=.32*Math.sin(T*.11+gst*1.9)**3,ang=W0+lean,wx=Math.cos(ang),wz=Math.sin(ang),ph=(T*(14+gst*3)+gst*211)%span-span/2,side=((gst*263)%span)-span/2,
+      cx=view.x+Math.cos(W0)*ph-Math.sin(W0)*side,cz=view.z+Math.sin(W0)*ph+Math.cos(W0)*side,life=Math.sin(Math.PI*((ph+span/2)/span));
+    for(let k=0;k<12;k++){const ox=Math.sin(k*12.9+gst)*55,oz=Math.cos(k*7.3+gst*2)*28,run=((T*(30+k%5*6)+k*37)%90)-45,x=cx-wz*ox+wx*(oz+run),z=cz+wx*ox+wz*(oz+run),a=life*Math.sin(Math.PI*((run+45)/90));if(a<.05)continue;
+      qr.setFromAxisAngle(UP,Math.atan2(wx,wz));mt.compose(vp.set(x,26+(k%4)*5,z),qr,vs.set(.5+a*.5,1,(18+k%3*10)*a));WINDM.setMatrixAt(n++,mt)}}
+  vs.set(1,1,1);WINDM.count=n;WINDM.instanceMatrix.needsUpdate=true}
 function crater(x,z,r,remote){
   if(shoreOf(x,z)<WL-1.2||onDeck(x,z))return;
   for(let k=0;k<4;k++){const w=RWY[k],D=P[k];if(!w||!D||!D.rwState)continue;const dx=x-w.c.x,dz=z-w.c.z;if(Math.abs(dx*w.ux+dz*w.uz)<w.len/2+r&&Math.abs(-dx*w.uz+dz*w.ux)<6+r)return}     // a runway cracks (its own decals) instead of the ground under it caving in     // on a beach the hole goes below the waterline and the sea runs into it
@@ -2966,7 +2986,7 @@ function toggleHud(){const off=document.body.classList.toggle('nohud');$('eye').
 let moneyShown=null;
 // a tip may carry {au}: the gold coin
 function tip(m){const el=$('tip');el.textContent='';String(m).split('{au}').forEach((t,i)=>{if(i){const c=document.createElement('i');c.className='au';el.append(c)}el.append(t)});el.hidden=false;tipT=3}
-function setBuild(k){if(k&&aim)setAim(null);build=k;for(const b of document.querySelectorAll('#gDef button,#gYap button,#tabs [data-k]'))b.classList.toggle('on',b.dataset.k===k);ring.visible=false;if(k){pick(null);tip(k==='kopru'?(DUEL&&DBR.some(b=>b.down)?(EN?`Bridge: tap the river, or tap a fallen stone bridge to rebuild it (${DBR_FIX} gold)`:`Köprü: nehrin üstüne dokun ya da yıkık taş köprüye dokunup onar (${DBR_FIX} {au})`):fountainDown?(EN?`Bridge: tap the river. Tap the middle to repair the plaza (${PLAZA_COST} gold)`:`Köprü: nehrin üstüne dokun. Yıkık meydanı onarmak için ortaya dokun (${PLAZA_COST} {au})`):TL('Köprü: nehrin üstünde bir yere dokun','Bridge: tap a spot on the river')):k==='sil'?TL('Silmek için yapılara dokun veya üstünden sürükle. Altının yarısı geri gelir.','Tap or drag over buildings to remove them. You get half back.'):k==='duvar'?TL('Parmağını veya fareyi sürükleyerek sıra sıra duvar çek','Drag to lay a line of walls'):TOWERS[k].ad+TL(': yerleştirmek için kendi bölgene dokun',': tap your area to place it'))}}
+function setBuild(k){if(k&&aim)setAim(null);build=k;for(const b of document.querySelectorAll('#gDef button,#gYap button,#rot [data-k]'))b.classList.toggle('on',b.dataset.k===k);ring.visible=false;if(k){pick(null);tip(k==='kopru'?(DUEL&&DBR.some(b=>b.down)?(EN?`Bridge: tap the river, or tap a fallen stone bridge to rebuild it (${DBR_FIX} gold)`:`Köprü: nehrin üstüne dokun ya da yıkık taş köprüye dokunup onar (${DBR_FIX} {au})`):fountainDown?(EN?`Bridge: tap the river. Tap the middle to repair the plaza (${PLAZA_COST} gold)`:`Köprü: nehrin üstüne dokun. Yıkık meydanı onarmak için ortaya dokun (${PLAZA_COST} {au})`):TL('Köprü: nehrin üstünde bir yere dokun','Bridge: tap a spot on the river')):k==='sil'?TL('Silmek için yapılara dokun veya üstünden sürükle. Altının yarısı geri gelir.','Tap or drag over buildings to remove them. You get half back.'):k==='duvar'?TL('Parmağını veya fareyi sürükleyerek sıra sıra duvar çek','Drag to lay a line of walls'):TOWERS[k].ad+TL(': yerleştirmek için kendi bölgene dokun',': tap your area to place it'))}}
 function mkHud(){
   for(const k of TKEYS){const b=document.createElement('button');b.dataset.k=k;b.innerHTML=(EN?`${TOWERS[k].kisa}<small>${TOWERS[k].cost}<i class="au"></i></small>`:`${TOWERS[k].kisa}<small>${TOWERS[k].cost}<i class="au"></i></small>`);b.title=k==='roket'?TL('Güdümlü roket atar: uçağa, balona ve füzeye kilitlenir','Fires guided rockets: locks onto planes, balloons and missiles'):k==='hava'?TL('Balon, füze ve uçakları vurur','Shoots balloons, missiles and planes'):k==='top'?TL('Yerdeki askerleri ve uzaktaki savaş gemilerini vurur','Hits ground troops and distant warships'):TL('Yerdeki ve sudaki askerleri vurur','Hits troops on land and in water');b.onclick=()=>setBuild(build===k?null:k);$('gDef').append(b)}
   {const b=document.createElement('button');b.dataset.k='sil';b.innerHTML=TL('Sil<small>işçi söker</small>','Erase<small>workers</small>');b.onclick=()=>setBuild(build==='sil'?null:'sil');$('gDef').append(b)}
@@ -2987,10 +3007,10 @@ function mkHud(){
   {const b=document.createElement('button');b.id='bBirlik';b.title=TL('Birlik alanında bekleyen askerlerin: kaçını göndereceğini seç, sonra yol çiz ya da hedefe dokun.','Troops waiting on your muster field: pick how many to send, then draw a path or tap a target.');b.innerHTML=TL('Birlik<small>gönder</small>','Army<small>send</small>');b.onclick=()=>openRally($('rallyP').hidden);$('gAtk').append(b)}
   {const sec=(g,t)=>{const d=document.createElement('div');d.className='sec';d.textContent=t;return d},G=$('gDef'),A=$('gAtk'),q=sel=>G.querySelector(sel)||A.querySelector(sel);
     G.append(sec(G,TL('KULELER · kuleye dokun: yükselt ya da sil','TOWERS · tap one to upgrade or remove')));for(const k of TKEYS)if(k!=='duvar')G.append(q(`[data-k=${k}]`));
-    {const e=q('[data-k=sil]');if(e){e.classList.add('mini');$('tabs').append(e)}}     // Erase sits outside with Army and Select
+    {const e=q('[data-k=sil]');if(e){e.classList.add('mini');$('rot').append(e)}}     // Erase, Army and Select stand in a column on the right, under the turn buttons — in easy reach of the right thumb
     for(const e of[q('[data-k=duvar]'),q('[data-k=kopru]'),$('bTersane'),$('bPist'),$('bFuzeS')])if(e)$('gYap').append(e);     // walls lead the Build panel
     A.append(sec(A,TL('ASKER YETİŞTİR · birlik alanında bekler','TRAIN · they wait on your muster field')));for(const k of BUY)if(POP[k])A.append(q(`[data-k=${k}]`));
-    for(const e of[$('bBirlik'),$('bSec')])if(e){e.classList.add('mini');$('tabs').append(e)}     // Army and Select sit beside the menu buttons, always to hand
+    for(const e of[$('bBirlik'),$('bSec')])if(e){e.classList.add('mini');$('rot').append(e)}
     A.append(sec(A,TL('ÖZEL SALDIRI','SPECIAL ATTACKS')));for(const k of BUY)if(!POP[k])A.append(q(`[data-k=${k}]`))}
   mkChat();mkSettings();mkRally();$('laneX').onclick=()=>laneAsk(null);$('laneRot').onclick=()=>{if(RUN)RUN.a+=Math.PI/4};$('laneGo').onclick=runSend;
   $('cmdHome').onclick=orderRally;
@@ -3000,7 +3020,7 @@ function mkHud(){
   const wake=()=>SES.init();addEventListener('pointerdown',wake);addEventListener('touchend',wake);addEventListener('keydown',wake);addEventListener('focus',wake);
   // three round menu buttons; each opens its own panel of square buttons, a second tap closes it
   // every label fits its button: long words are shrunk a step at a time until nothing spills over the edge
-  setInterval(()=>{for(const b of document.querySelectorAll('.grp button,#tabs button')){if(!b.offsetParent)continue;const fs0=b.dataset.fs0||(b.dataset.fs0=parseFloat(getComputedStyle(b).fontSize));let f=parseFloat(b.style.fontSize)||fs0;
+  setInterval(()=>{for(const b of document.querySelectorAll('.grp button,#tabs button,#rot button')){if(!b.offsetParent)continue;const fs0=b.dataset.fs0||(b.dataset.fs0=parseFloat(getComputedStyle(b).fontSize));let f=parseFloat(b.style.fontSize)||fs0;
     if(b.scrollWidth<=b.clientWidth+1&&b.scrollHeight<=b.clientHeight+1&&f<fs0){b.style.fontSize=Math.min(fs0,f+.5)+'px';if(b.scrollWidth>b.clientWidth+1||b.scrollHeight>b.clientHeight+1)b.style.fontSize=f+'px';continue}
     let n=0;while((b.scrollWidth>b.clientWidth+1||b.scrollHeight>b.clientHeight+1)&&f>7&&n++<12){f-=.5;b.style.fontSize=f+'px'}}},600);
   document.body.dataset.tab='';const tabGo=t=>{const B=document.body;B.dataset.tab=B.dataset.tab===t?'':t;if(t==='a'||!B.dataset.tab)setBuild(null);if(t!=='a'||!B.dataset.tab)setAim(null)};

@@ -49,14 +49,15 @@ export const SES={ctx:null,int:.2,last:{},ayar:{muzik:saved.muzik!==false,okcu:s
         const w=new Float32Array(n);for(let i=0;i<n;i++)w[i]=nz();for(const[f0,g]of[[3400+v*220,1],[5100+v*300,.35]]){let lo=0,bd=0;for(let i=0;i<n;i++){const t=i/R,f=f0*(.55+.45*Math.exp(-t*3.2)),q=.035,k=2*Math.sin(Math.PI*f/R);lo+=k*bd;const hi=w[i]-lo-q*bd;bd+=k*hi;
           const a=(t<.025?t/.025:1)*Math.exp(-Math.max(0,t-.08)/.17)*(.75+.25*Math.sin(t*2*Math.PI*41));d[i]+=bd*a*.05*g}}
         hp(d,.9)}));
-      // swords meeting: a hard crack, two inharmonic FM rings (two blades, two pitches) that clang and shimmer away, a cloud of high glints, and a short grinding scrape along the edge
-      add('kilic',mk(.8,(d,n)=>{let sd=17+v*31;const rnd=()=>(sd=(sd*16807)%2147483647)/2147483647;
-        for(const[c,mr,ix,tau,a]of[[2250+v*160,1.41,3.2,.32,1],[3150+v*190,1.73,2.6,.22,.7],[1480+v*90,2.31,1.6,.12,.45]]){let pc=0,pm=0;for(let i=0;i<n;i++){const t=i/R;pm+=2*Math.PI*c*mr/R;pc+=2*Math.PI*c/R+ix*Math.exp(-t*9)*Math.sin(pm)*2*Math.PI*c*mr/R*.06;d[i]+=Math.sin(pc)*Math.exp(-t/tau)*a*(1+.25*Math.sin(t*2*Math.PI*(7+v)))*.5}}
-        const ex=new Float32Array(n);for(let i=0;i<n;i++){const t=i/R;ex[i]=nz()*env(t,.0001,.0015)}for(let k=0;k<14;k++)res(ex,d,2600+rnd()*4200,.02+rnd()*.07,.35);for(let i=0;i<n;i++)d[i]+=ex[i]*.45;
-        let lo=0,bd=0;for(let i=0;i<n;i++){const t=i/R,f=Math.max(1800,6500-t*16000),k=2*Math.sin(Math.PI*f/R);lo+=k*bd;const hi=nz()-lo-.3*bd;bd+=k*hi;d[i]+=bd*(t<.01?0:Math.exp(-(t-.01)/.06))*.12}
-        // the weight behind the blow: a short heavy thump of arm and steel meeting
-        {let ph=0;for(let i=0;i<Math.min(n,R*.12);i++){const t=i/R;ph+=2*Math.PI*(150-t*500)/R;d[i]+=Math.sin(ph)*env(t,.0006,.025)*.4}const ex=new Float32Array(n);for(let i=0;i<n;i++)ex[i]=nz()*env(i/R,.0003,.004);res(ex,d,240,.035,1.6);res(ex,d,520,.025,1.2)}
-        hp(d,.995)}));
+      // swords meeting: two steel blades behave like free bars, so each rings with the bar's stretched overtones (1 : 2.76 : 5.40 : 8.93 …), each a pair of close tones that beat;
+      // the strike itself is a hard bright crack, a dull thump of the blow behind it, and sometimes a second quick contact as the blades slide
+      add('kilic',mk(.62,(d,n)=>{let sd=23+v*41;const rnd=()=>(sd=(sd*16807)%2147483647)/2147483647;
+        const strike=(t0,amp,f0)=>{const i0=Math.floor(t0*R),N=n-i0;if(N<=0)return;const ex=new Float32Array(N),o=new Float32Array(N);for(let k=0;k<N;k++){const t=k/R;ex[k]=nz()*env(t,.00008,.0009)}
+          for(const[m,a]of[[1,1],[2.756,.8],[5.404,.6],[8.933,.42],[13.34,.28],[18.64,.16]]){const tau=.42/Math.pow(m,.55);res(ex,o,f0*m*(1-.003),tau,a);res(ex,o,f0*m*(1+.004+rnd()*.002),tau*.9,a*.8)}
+          let ph=0;for(let k=0;k<N;k++){const t=k/R;ph+=2*Math.PI*(120-t*300)/R;d[i0+k]+=(o[k]*.9+ex[k]*1.2+Math.sin(ph)*env(t,.0005,.02)*.35)*amp}};
+        const f0=980+v*120+rnd()*60;strike(0,1,f0);if(v%2)strike(.07+rnd()*.03,.45,f0*1.06);
+        let lo=0,bd=0;for(let i=0;i<n;i++){const t=i/R;if(t>.15)break;const f=Math.max(2200,7000-t*30000),k=2*Math.sin(Math.PI*f/R);lo+=k*bd;const hi=nz()-lo-.35*bd;bd+=k*hi;d[i]+=bd*(t<.004?0:Math.exp(-(t-.004)/.035))*.07}
+        for(let i=0;i<n;i++){const t=i/R;d[i]*=t<.45?1:Math.exp(-(t-.45)/.05)}hp(d,.985)}));
       // a mallet on timber: a solid knock, the wood thumping and clattering briefly
       add('cekic',mk(.3,(d,n)=>{const ex=new Float32Array(n);for(let i=0;i<n;i++){const t=i/R;ex[i]=nz()*env(t,.0003,.0025)}for(const[f,tau,a]of[[180+v*15,.06,3],[330+v*25,.05,4],[610+v*40,.035,4],[1250+v*80,.02,3],[2400,.01,2]])res(ex,d,f,tau,a);
         let ph=0;for(let i=0;i<n;i++){const t=i/R;ph+=2*Math.PI*(95-t*120)/R;d[i]+=Math.sin(ph)*env(t,.001,.03)*.12+ex[i]*.25}lp(d,.7)}));
@@ -66,14 +67,18 @@ export const SES={ctx:null,int:.2,last:{},ayar:{muzik:saved.muzik!==false,okcu:s
         let ph=0;for(let i=0;i<n;i++){const t=i/R;ph+=2*Math.PI*(85-t*60)/R;d[i]+=Math.sin(ph)*env(t,.0008,.05)*.9+ex[i]*.7}hp(d,.985)}));
       // explosion: a deep thud under a long rumbling roar
       add('patla',mk(1.6,(d,n)=>{let ph=0;for(let i=0;i<n;i++){const t=i/R,f=70*Math.exp(-t*3)+28;ph+=2*Math.PI*f/R;d[i]=Math.sin(ph)*env(t,.004,.25)*1.2+nz()*env(t,.003,.35+v*.08)}lp(d,.08+v*.015)}));
-      // a galloping horse heard close by: the three-beat gallop (ta-ta-tum) on packed earth — each hoof a hard hollow knock of horn on ground ringing in the hoof wall, with a soft thud of weight and a scatter of grit; the horse's blowing breath rides each stride
-      add('nal',mk(1.38,(d,n)=>{let sd=11+v*29;const rnd=()=>(sd=(sd*16807)%2147483647)/2147483647;
-        const hoof=(t0,a)=>{const i0=Math.floor(t0*R),N=Math.min(n-i0,Math.floor(R*.14));if(N<=0)return;const ex=new Float32Array(N),o=new Float32Array(N);
-          for(let k=0;k<N;k++){const t=k/R;ex[k]=nz()*env(t,.0002,.0016)}const f=(360+rnd()*120)*(1+v*.04);res(ex,o,f,.018,3.2);res(ex,o,f*2.3,.01,2);res(ex,o,1700+rnd()*500,.006,1.2);
-          let ph=0;for(let k=0;k<N;k++){const t=k/R;ph+=2*Math.PI*(85-t*160)/R;d[i0+k]+=(o[k]+Math.sin(ph)*env(t,.0015,.022)*.55+ex[k]*.25)*a;if(rnd()<.004)d[i0+k]+=(rnd()-.5)*.4*a*Math.exp(-t*20)}};
-        for(let c=0;c<3;c++){const b=c*.46+(v%2)*.01,j=()=>(rnd()-.5)*.01;hoof(b+j(),.85);hoof(b+.11+j(),.8);hoof(b+.21+j(),1);
-          const bi=Math.floor((b+.27)*R);let y=0;for(let i=bi;i<Math.min(n,bi+R*.13);i++){const t=(i-bi)/R;y+=.1*(nz()-y);d[i]+=y*Math.sin(Math.PI*t/.13)*.7}}
-        hp(d,.99);lp(d,.75)}));
+      // a galloping horse on a dirt track: the four-beat rumble of hooves (da-da-da-dum) — each a heavy low thud of a half-tonne animal landing, muffled by the earth, with a puff of kicked-up dirt;
+      // over it the creak of saddle leather and the faint jingle of the bit and buckles
+      add('nal',mk(1.4,(d,n)=>{let sd=31+v*17;const rnd=()=>(sd=(sd*16807)%2147483647)/2147483647;
+        const thud=(t0,a)=>{const i0=Math.floor(t0*R),N=Math.min(n-i0,Math.floor(R*.18));if(N<=0)return;let ph=0,lp1=0,lp2=0;const f0=88+rnd()*20;
+          for(let k=0;k<N;k++){const t=k/R;ph+=2*Math.PI*(f0+40*Math.exp(-t*60))/R;const x=nz();lp1+=.22*(x-lp1);lp2+=.22*(lp1-lp2);
+            d[i0+k]+=(Math.sin(ph)*env(t,.002,.045)*.5+lp2*env(t,.001,.03)*2.6+x*env(t,.0003,.002)*.18)*a}};
+        for(let c=0;c<3;c++){const b=c*.465+(v%2)*.01,j=()=>(rnd()-.5)*.012;thud(b+j(),.8);thud(b+.075+j(),.75);thud(b+.16+j(),.95);thud(b+.24+j(),1);
+          // dirt scattering a moment after the leading foot lands
+          const bi=Math.floor((b+.26)*R);for(let k=0;k<R*.09&&bi+k<n;k++){if(rnd()<.03)d[bi+k]+=(rnd()-.5)*.25*Math.exp(-k/R*30)}
+          // tack: two small metal tinks per stride
+          for(const tt of[b+.05,b+.2]){const i0=Math.floor(tt*R),ex=new Float32Array(Math.floor(R*.08)),o=new Float32Array(ex.length);for(let k=0;k<ex.length;k++)ex[k]=nz()*env(k/R,.0001,.0008);res(ex,o,3100+rnd()*900,.03,1);res(ex,o,4700+rnd()*900,.02,.7);for(let k=0;k<o.length&&i0+k<n;k++)d[i0+k]+=o[k]*.06}}
+        lp(d,.8);hp(d,.995)}));
       // a horse's call: a snort (air blown hard through the nostrils, flapping them) or a whinny — a cry that climbs, shakes and falls, breathy, then a low nicker
       if(v<2)add('kisne',mk(.7,(d,n)=>{let y=0;for(let i=0;i<n;i++){const t=i/R,am=Math.sin(Math.PI*Math.min(1,t/.55))**.6*(.55+.45*Math.sign(Math.sin(t*2*Math.PI*(26+v*5))));y+=.22*(nz()-y);d[i]=y*am}
         const o=new Float32Array(n);res(d,o,320+v*40,.03,2);res(d,o,750,.02,1.2);for(let i=0;i<n;i++)d[i]=d[i]*.6+o[i];lp(d,.4)}));
