@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {SES} from './ses.js?v=20261119a';
+import {SES} from './ses.js?v=20261119b';
 /* Dört Cephe. Each client simulates its own square (and any computer rivals);
    units sent to a player are simulated by that player. Others see 2 snapshots a second. */
 const A=window.ARENA,EN=window.LANG==='en',TL=(t,e)=>EN?e:t;
@@ -10,7 +10,7 @@ const num=(v,d=0)=>typeof v==='number'&&isFinite(v)?v:d;
 // ---------- rules ----------
 let BUILD_T={denizalti:16,gemi:20},TBUILD={ok:7,top:10,hava:9,roket:14,duvar:2.5},WMAX=12,RUNWAY_COST=200,MS_COST=100,MS_T=10,MS_HP=120,RUNWAY_T=12,YARD_COST=100,YARD_T=15,MAX_SHIPS=4,PLANE_T=12,SHIP_SEE=80,SHIP_STAND=95,SUB_TIME=16,WALL=3,START_MONEY=200*2.5,CASTLE_HP=500,TRICKLE=0.5,MAX_TOWERS=40;
 // a base trains one soldier at a time and fields a limited army, so nobody can flood the map
-let TRAIN={piyade:2,atli:3,koc:7,balon:6},POP={piyade:1,atli:1,koc:3,balon:2},POP_CAP=40,FUZE_CD=6,DBR_FIX=100,VER='39';
+let TRAIN={piyade:2,atli:3,koc:7,balon:6},POP={piyade:1,atli:1,koc:3,balon:2},POP_CAP=40,FUZE_CD=6,DBR_FIX=100,VER='40';
 // the lesson: an empty 1v1 map where nothing costs anything and nothing has to be waited for
 const TUT=!!(A&&A.tutorial);
 if(TUT){BUILD_T={denizalti:.5,gemi:.5};for(const k in TBUILD)TBUILD[k]=.2;RUNWAY_T=YARD_T=PLANE_T=.5;FUZE_CD=.5;TRAIN={piyade:.2,atli:.2,koc:.2,balon:.2}}
@@ -373,7 +373,7 @@ function canBuild(D,x,z,type){
   return!D.towers.some(t=>Math.hypot(t.x-x,t.z-z)<(wall&&t.type==='duvar'?WALL-.1:fr(type)+fr(t.type)+.3))&&!(DUEL&&DBR.some(b=>!b.down&&segD(x,z,b)<BRW+fr(type)));
 }
 const shipR=t=>78+t.lvl*6,maxHp=t=>(TOWERS[t.type].hp||100)*t.lvl;
-function addTower(D,type,x,z){
+function addTower(D,type,x,z){tuftsOff(x,z,type==='duvar'?2:3);
   const T=TOWERS[type];if(D.money<T.cost||!canBuild(D,x,z,type))return null;
   D.money-=T.cost;const t={id:tid++,type,x,z,lvl:1,hp:T.hp||100,cd:0,paid:T.cost,owner:D.seat,bt:TBUILD[type],BT:TBUILD[type]};clearProps(x,z,type==='duvar'?2.2:3.8);D.towers.push(t);makeTowerModel(t);t.mesh.sy=.12;markBuilt(D);hire(D);return t;
 }
@@ -1602,6 +1602,20 @@ function updateSites(dt){
 }
 // trees and rocks scattered over the bases; a blast or a new building knocks them down
 const PROPS=[];let PROPM=null;
+// tufts of grass and wild flowers over the meadow, dry grass in the desert: thousands of tiny clumps, swaying a little in the wind
+let TUFT=null,TUFTP=null;
+function buildTufts(){const blades=[],col=[];const C=new THREE.Color();
+  for(let b=0;b<6;b++){const a=b/6*Math.PI*2+.3,r=.08+(b%2)*.06,h=.45+(b%3)*.18,lean=.18;const x0=Math.cos(a)*r,z0=Math.sin(a)*r,tx=x0+Math.cos(a)*lean,tz=z0+Math.sin(a)*lean,px=-Math.sin(a)*.08,pz=Math.cos(a)*.08;
+    blades.push(x0-px,0,z0-pz, x0+px,0,z0+pz, tx,h,tz, x0+px,0,z0+pz, x0-px,0,z0-pz, tx,h,tz);col.push(.75,.75,.75, .75,.75,.75, 1.25,1.25,1.25, .75,.75,.75, .75,.75,.75, 1.25,1.25,1.25)}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(blades,3));g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(new Array(blades.length/3).fill(0).flatMap(()=>[0,1,0]),3));     // lit like the ground under them, never black on the shadow side
+  const m=new THREE.MeshLambertMaterial({vertexColors:true});m.onBeforeCompile=sh=>{sh.uniforms.uT=WIND;sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nuniform float uT;').replace('#include <begin_vertex>','#include <begin_vertex>\n{vec4 wp=instanceMatrix*vec4(0.,0.,0.,1.);float s=sin(uT*1.7+wp.x*.21+wp.z*.17)*.12*position.y;transformed.x+=s;transformed.z+=s*.6;}')};
+  const N=SMALL?2600:4200,M=new THREE.InstancedMesh(g,m,N);M.receiveShadow=true;let n=0,sd=777;const R=()=>(sd=(sd*16807)%2147483647)/2147483647;TUFTP=[];
+  for(let t=0;t<N*4&&n<N;t++){const x=(R()-.5)*L*2.1,z=(R()-.5)*L*2.1,bm=biomeAt(x,z);if(bm>1)continue;if(shoreOf(x,z)<WL+2.5||roadDist(x,z)<4.2)continue;if(!DUEL&&Math.hypot(x,z)<28)continue;
+    let near=false;for(const D of P){const c=castlePos(D.seat);if(Math.hypot(x-c.x,z-c.z)<14){near=true;break}}if(near||(bm===1&&R()<.55))continue;
+    const sc=.7+R()*.8;mt.compose(vp.set(x,heightAt(x,z),z),qr.setFromAxisAngle(UP,R()*6.28),vs.set(sc,sc*(.8+R()*.5),sc));M.setMatrixAt(n,mt);
+    if(bm===0){const fl=R();C.set(fl<.06?'#f4e27a':fl<.1?'#e9a3c9':fl<.13?'#ffffff':'#5fae3f').offsetHSL((R()-.5)*.04,0,(R()-.5)*.08)}else C.set('#c7a45e').offsetHSL(0,0,(R()-.5)*.1);M.setColorAt(n,C);TUFTP.push([x,z,n]);n++}
+  vs.set(1,1,1);M.count=n;M.instanceMatrix.needsUpdate=true;if(M.instanceColor)M.instanceColor.needsUpdate=true;scene.add(M);TUFT=M}
+function tuftsOff(x,z,r){if(!TUFT)return;let ch=false;for(const q of TUFTP){if(q[3])continue;if(Math.abs(q[0]-x)<r&&Math.abs(q[1]-z)<r&&Math.hypot(q[0]-x,q[1]-z)<r){mt.makeScale(0,0,0);TUFT.setMatrixAt(q[2],mt);q[3]=1;ch=true}}if(ch)TUFT.instanceMatrix.needsUpdate=true}
 function clearProps(x,z,r){for(const p of PROPS)if(p.alive&&Math.hypot(p.x-x,p.z-z)<r)breakProp(p,x,z)}
 function breakProp(p,fx,fz){
   p.alive=false;const k=PROPM[p.k];mx.makeScale(0,0,0);for(const m of k)m.setMatrixAt(p.i,mx),m.instanceMatrix.needsUpdate=true;
@@ -2139,7 +2153,7 @@ function buildUnits(){
 // ---- real 3D characters (KayKit, CC0) and an animated horse (three.js, MIT): their animations are baked into frames
 // offline (model/*.bin), so each frame is one instanced mesh and hundreds of soldiers still cost only a few draw calls.
 // Until they load (or if they cannot) the old figures are used; far away the old light figures take over again (LOD).
-const BTHROW=new Map();
+const BTHROW=new Map(),BOFF=new Map();
 const CHR={},CHR_CAP=200,CHR_FAR=175;let curId=0,chrOn=true,curSY=1;
 const CHR_DEF={piyade:{tex:'knight'},dalgic:{tex:'rogue'},isci:{tex:'barbarian'},binici:{tex:'knight'},balonci:{tex:'knight'}};
 // a soft warm rim of light round every figure, so they stand out from the ground like painted miniatures
@@ -2185,12 +2199,13 @@ function horseGeo(ph,run){
   const tube=(pts,rad,c,seg=14,side=V(1,0,0))=>{const n=pts.length,P=[],I=[];for(let i=0;i<n;i++){const t=pts[Math.min(n-1,i+1)].clone().sub(pts[Math.max(0,i-1)]).normalize(),sd=side.clone().sub(t.clone().multiplyScalar(side.dot(t))).normalize(),nm=V(0,0,0).crossVectors(sd,t).normalize();
       for(let k=0;k<=seg;k++){const a=k/seg*Math.PI*2,[rx,ry,ry2]=rad[i],q=pts[i].clone().addScaledVector(sd,Math.cos(a)*rx).addScaledVector(nm,Math.sin(a)*(Math.sin(a)>0?ry:(ry2??ry)));P.push(q.x,q.y,q.z)}}
     for(let i=0;i<n-1;i++)for(let k=0;k<seg;k++){const a=i*(seg+1)+k,b=a+seg+1;I.push(a,b,a+1,a+1,b,b+1)}
-    const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setIndex(I);g.computeVertexNormals();put(g,c)};
+    const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setIndex(I);g.computeVertexNormals();put(g,c);
+    if(c===COAT){const q=parts[parts.length-1],N=q.attributes.normal,C=q.attributes.color;for(let k=0;k<C.count;k++){const ny=N.getY(k),sh=.8+.2*Math.min(1,Math.max(0,.5-ny*.6))+.05*Math.sin(q.attributes.position.getX(k)*9+q.attributes.position.getZ(k)*7);C.setXYZ(k,C.getX(k)*sh,C.getY(k)*sh,C.getZ(k)*sh)}}};     // a coat darker along the back, paler under the belly, faintly dappled
   // body: one loft from the dock of the tail to the breast. Sections: z, centre height, half width, half height above, half height below
   {const S=[[-1.7,2.03,.05,.05,.05],[-1.62,2.06,.26,.24,.3],[-1.47,2.08,.42,.37,.46],[-1.2,2.09,.51,.43,.56],[-.88,2.04,.5,.4,.5],[-.45,1.98,.48,.37,.56],[0,1.97,.5,.39,.63],[.45,2.02,.53,.43,.69],[.85,2.1,.5,.48,.67],[1.1,2.13,.44,.48,.6],[1.3,2.06,.36,.41,.5],[1.45,1.97,.2,.22,.3],[1.52,1.95,.04,.04,.04]];
     const pts=S.map(([z,y])=>{const k=Math.cos(z*1.2)*pit*0;return V(0,Y(y+z*pit*-1),z)}),br=run?1:1+Math.sin(T)*.03,rad=S.map(([,,rx,ru,rd])=>[rx*br,ru,rd*br]);     // at rest the barrel swells and settles with each breath
     // a loft along z: section 'up' is +y, so the path frame is built with side = x
-    tube(pts,rad,COAT,24);
+    tube(pts,rad,COAT,30);
     // shoulder and haunch muscle under the coat, so the body isn't a plain barrel
     for(const sd of[-1,1]){const sh=new THREE.SphereGeometry(1,14,10);sh.scale(.16,.46,.3);sh.rotateX(-.35);sh.translate(sd*.36,Y(2.0),.95);put(sh,COAT);const hq=new THREE.SphereGeometry(1,14,10);hq.scale(.2,.44,.42);hq.rotateX(.25);hq.translate(sd*.33,Y(1.98),-1.15);put(hq,COAT)}}
   // the neck sweeps up from the withers and arches forward; the head hangs from the poll, deep at the cheek, long to a soft muzzle
@@ -2234,14 +2249,13 @@ function horseGeo(ph,run){
   {keep=1;const a0=V(-.52,Y(2.75),-.55),a1=V(-.52,Y(2.45),2.75);limb(a0,a1,.05,.04,'#7a5a3a',8);const tp=new THREE.ConeGeometry(.07,.42,8);tp.rotateX(Math.PI/2-.09);tp.translate(a1.x,a1.y-.02,a1.z+.2);put(tp,'#c8ccd2');
     const gd=new THREE.ConeGeometry(.16,.4,10,1,true);gd.rotateX(Math.PI/2-.09);gd.translate(-.5,Y(2.86),-.1);put(gd,'#9aa0a8');
     const pn=new THREE.BufferGeometry();const px=a1.x,py=a1.y+.03,pz=a1.z-.35,fl=run?Math.sin(T*4)*.06:0;pn.setAttribute('position',new THREE.Float32BufferAttribute([px,py,pz, px,py+.32,pz-.08, px+fl,py+.16,pz-.6],3));put(pn,'#e8e2d0');keep=0}
-  // war harness after the old barding: a steel chanfron down the face, a peytral plate round the breast, a crupper of two plates over the haunches, all edged in brass
+  // war harness after the old barding: a steel chanfron down the face, a peytral plate round the breast, a  all edged in brass
   {keep=1;const ST='#b9c0c8',BR='#c9a443',hd=V(0,-.62,.62).normalize(),up=V(0,.62,.62).normalize();
     {const c=new THREE.BoxGeometry(.27,.04,.66);c.rotateX(Math.PI/4);const p0=poll.clone().addScaledVector(hd,.42).addScaledVector(up,.15);c.translate(p0.x,p0.y,p0.z);put(c,ST);
      for(const sd of[-1,1]){const ch=new THREE.BoxGeometry(.03,.2,.36);ch.rotateX(Math.PI/4);const q=poll.clone().addScaledVector(hd,.3).add(V(sd*.16,-.02,0));ch.translate(q.x,q.y,q.z);put(ch,ST)}
      const sp=new THREE.ConeGeometry(.045,.16,6);sp.rotateX(-Math.PI/4);const q=poll.clone().addScaledVector(hd,.28).addScaledVector(up,.2);sp.translate(q.x,q.y,q.z);put(sp,BR)}
     {const pe=new THREE.CylinderGeometry(.52,.56,.42,24,1,true,-1.15,2.3);pe.scale(1,1,.95);pe.translate(0,Y(1.86),.92);put(pe,ST);for(const y of[2.07,1.65]){const r=new THREE.CylinderGeometry(.535,.545,.05,24,1,true,-1.17,2.34);r.scale(1,1,.95);r.translate(0,Y(y),.92);put(r,BR)}
      const boss=new THREE.SphereGeometry(.08,10,8);boss.translate(0,Y(1.86),1.42);put(boss,BR)}
-    {const cr=new THREE.CylinderGeometry(.6,.6,.85,24,1,true,Math.PI-1.75,3.5);cr.rotateX(Math.PI/2);cr.translate(0,Y(1.98),-1.15);put(cr,ST);for(const z of[-1.56,-.74]){const r=new THREE.CylinderGeometry(.615,.615,.05,24,1,true,Math.PI-1.77,3.54);r.rotateX(Math.PI/2);r.translate(0,Y(1.98),z);put(r,BR)}}
     keep=0}
   // a long mane falling to one side of the neck, in locks
   for(let k=0;k<9;k++){const t=k/8,p0=V(.05,Y(2.36+t*.5+nk*t),1.1+t*.82+nk*.3*t),sw=run?Math.sin(T*2+k*.7)*.05:0;tube([p0,p0.clone().add(V(.14,-.2,.02+sw)),p0.clone().add(V(.2,-.42+t*.1,.05+sw*1.6))],[[.045,.08],[.04,.065],[.012,.02]],DK,5)}
@@ -2278,7 +2292,14 @@ function drawUnits(rdt){
   const n={};for(const k of UKEYS)n[k]=0;
   const turn=(p,a)=>{mt.makeTranslation(p[0],p[1],p[2]);mr.makeRotationX(a);mb.makeTranslation(-p[0],-p[1],-p[2]);return mo.copy(mx).multiply(mt).multiply(mr).multiply(mb)};
   // atk: 0..1 through one blow. f: pulled back (-.5) to fully struck (1)
+  // balloons are drawn apart from one another whatever the simulation says (local or a friend's over the net): each gets a smooth sideways offset out of any crowd
+  {const B=[];for(const D of P){for(const u of D.units)if(u.type==='balon'&&u.fall==null&&!u.done)B.push([u.id,u.x,u.z]);for(const o of D.remote.values())if(o.type==='balon'&&!(o.fl&2)){if(o.sd==null)o.sd=Math.random()*1e3;B.push([o.sd,o.x,o.z])}}
+    const seen=new Set();for(const[id,x,z]of B){let o=BOFF.get(id);if(!o){o={x:0,z:0};BOFF.set(id,o)}seen.add(id);let fx=0,fz=0;
+      for(const[id2,x2,z2]of B){if(id2===id)continue;const o2=BOFF.get(id2)||{x:0,z:0},dx=(x+o.x)-(x2+o2.x),dz=(z+o.z)-(z2+o2.z),d=Math.hypot(dx,dz);if(d<9){const e=d<.05?[Math.cos(id*2.4),Math.sin(id*2.4)]:[dx/d,dz/d];fx+=e[0]*(9-d);fz+=e[1]*(9-d)}}
+      const k=Math.min(1,rdt*2.5);o.x+=(fx*.6-o.x*.15)*k;o.z+=(fz*.6-o.z*.15)*k;const l=Math.hypot(o.x,o.z);if(l>9){o.x*=9/l;o.z*=9/l}}
+    for(const id of BOFF.keys())if(!seen.has(id))BOFF.delete(id)}
   const put=(type,x,z,from,dir,moving=true,pitchY=null,pitch=0,atk=null)=>{
+    if(type==='balon'){const o=BOFF.get(curId);if(o){x+=o.x;z+=o.z}}
     if(chrOn&&chrReady(type)&&(type==='atli'||camera.position.distanceToSquared(vp.set(x,0,z))<CHR_FAR*CHR_FAR)){     // the real model, close enough to be seen
       const T=now()/1000,sd=(curId*.6180339)%1,y=(pitchY??unitY(UNITS[type],x,z));vp.set(x,y,z);qt.setFromAxisAngle(UP,dir);if(pitch){qr.setFromAxisAngle(XA,pitch);qt.multiply(qr)}mx.compose(vp,qt,vs.setScalar(CHS[type]||1));vs.set(1,1,1);
       if(type==='atli'){if(HRS.fi)moving=false;const H=HRS,br=moving?0:Math.sin(T*2.2+sd*6.28),bob=moving?Math.sin((((T*1.25+sd)%1+1)%1)*Math.PI*4)*.07*H.s+.03:0;     // standing still the horse breathes and shifts a little, galloping it rocks the rider
@@ -2616,17 +2637,17 @@ function drawBirds(){if(!BIRDS){const mk=up=>{     // a gull: a white body and h
 // from high up the wind shows: straight thin streaks of air in a few gusts that drift across the map; now and then a gust leans a little to one side
 let WINDM=null;
 function drawWind(T){const far=clamp((view.d-120)/140,0,1);if(!WINDM){const g=new THREE.PlaneGeometry(1,1,1,10).rotateX(-Math.PI/2);{const P=g.attributes.position;for(let i=0;i<P.count;i++){const z=P.getZ(i);P.setX(i,P.getX(i)*(1-Math.abs(z*2)**2))}}
-    const m=new THREE.MeshBasicMaterial({color:'#ffffff',transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending});WINDM=new THREE.InstancedMesh(g,m,48);WINDM.frustumCulled=false;scene.add(WINDM)}
+    const m=new THREE.MeshBasicMaterial({color:'#ffffff',transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending});WINDM=new THREE.InstancedMesh(g,m,72);WINDM.frustumCulled=false;scene.add(WINDM)}
   WINDM.visible=far>0;if(!far)return;WINDM.material.opacity=.28*far;const W0=.6,span=760;let n=0;
-  for(let gst=0;gst<4;gst++){const lean=.32*Math.sin(T*.11+gst*1.9)**3,ang=W0+lean,wx=Math.cos(ang),wz=Math.sin(ang),ph=(T*(14+gst*3)+gst*211)%span-span/2,side=((gst*263)%span)-span/2,
-      cx=view.x+Math.cos(W0)*ph-Math.sin(W0)*side,cz=view.z+Math.sin(W0)*ph+Math.cos(W0)*side,life=Math.sin(Math.PI*((ph+span/2)/span));
+  for(let gst=0;gst<6;gst++){const lean=.32*Math.sin(T*.11+gst*1.9)**3,ang=W0+lean,wx=Math.cos(ang),wz=Math.sin(ang),ph=(T*(14+gst*3)+gst*211)%span-span/2,side=((gst*263+40)%span)-span/2,
+      cx=Math.cos(W0)*ph-Math.sin(W0)*side,cz=Math.sin(W0)*ph+Math.cos(W0)*side,life=Math.sin(Math.PI*((ph+span/2)/span));
     for(let k=0;k<12;k++){const ox=Math.sin(k*12.9+gst)*55,oz=Math.cos(k*7.3+gst*2)*28,run=((T*(30+k%5*6)+k*37)%90)-45,x=cx-wz*ox+wx*(oz+run),z=cz+wx*ox+wz*(oz+run),a=life*Math.sin(Math.PI*((run+45)/90));if(a<.05)continue;
       qr.setFromAxisAngle(UP,Math.atan2(wx,wz));mt.compose(vp.set(x,26+(k%4)*5,z),qr,vs.set(.5+a*.5,1,(18+k%3*10)*a));WINDM.setMatrixAt(n++,mt)}}
   vs.set(1,1,1);WINDM.count=n;WINDM.instanceMatrix.needsUpdate=true}
 function crater(x,z,r,remote){
   if(shoreOf(x,z)<WL-1.2||onDeck(x,z))return;
   for(let k=0;k<4;k++){const w=RWY[k],D=P[k];if(!w||!D||!D.rwState)continue;const dx=x-w.c.x,dz=z-w.c.z;if(Math.abs(dx*w.ux+dz*w.uz)<w.len/2+r&&Math.abs(-dx*w.uz+dz*w.ux)<6+r)return}     // a runway cracks (its own decals) instead of the ground under it caving in     // on a beach the hole goes below the waterline and the sea runs into it
-  sinkGround(x,z,r);anyCrater=true;clearProps(x,z,r+1.6);debris(x,z,r);
+  sinkGround(x,z,r);anyCrater=true;clearProps(x,z,r+1.6);tuftsOff(x,z,r+1.2);debris(x,z,r);
   const R=Math.ceil(r),cx=Math.round(x),cz=Math.round(z),D=craterDepth(r);
   for(let j=cz-R;j<=cz+R;j++)for(let i=cx-R;i<=cx+R;i++){const X=i+L,Z=j+L;if(X<0||Z<0||X>=GN||Z>=GN)continue;const d=Math.hypot(i-x,j-z)/r;if(d<1)CRD[X+Z*GN]=Math.min(CRMAX,Math.max(0,baseHeight(i,j)-.3),CRD[X+Z*GN]+D*(1-d*d)*(1-.7*Math.min(1,CRD[X+Z*GN]/CRMAX)))}
   if(!remote&&!P.every(p=>!p.on||p===ME||p.bot))say('krater',[x|0,z|0,r]);
@@ -3300,7 +3321,7 @@ function frameBody(t){
   if((fno=(fno||0)+1)%15===0)forestLOD();
 }
 let fno=0,lockTipT=0;
-buildGround();buildOuter();buildWater();buildBridges();buildForest();buildDetail();buildUnits();loadChars();loadKK();buildSites();P.forEach(D=>{if(D.on)buildCastle(D.seat)});if(TUT)for(const D of P)if(D!==ME)D.msState=2;
+buildGround();buildOuter();buildWater();buildBridges();buildForest();buildDetail();buildTufts();buildUnits();loadChars();loadKK();buildSites();P.forEach(D=>{if(D.on)buildCastle(D.seat)});if(TUT)for(const D of P)if(D!==ME)D.msState=2;
 size();mkHud();connect();applyCam(1);if(TUT)mkTut();
 sun.shadow.autoUpdate=false;sun.shadow.needsUpdate=true;if(!GFX[gfxMode].sh)sun.castShadow=false;
 // draw every kind of object once, out of sight, so no shader is ever built in the middle of a fight
