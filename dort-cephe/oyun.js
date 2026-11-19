@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {SES} from './ses.js?v=20261119b';
+import {SES} from './ses.js?v=20261119c';
 /* Dört Cephe. Each client simulates its own square (and any computer rivals);
    units sent to a player are simulated by that player. Others see 2 snapshots a second. */
 const A=window.ARENA,EN=window.LANG==='en',TL=(t,e)=>EN?e:t;
@@ -10,7 +10,7 @@ const num=(v,d=0)=>typeof v==='number'&&isFinite(v)?v:d;
 // ---------- rules ----------
 let BUILD_T={denizalti:16,gemi:20},TBUILD={ok:7,top:10,hava:9,roket:14,duvar:2.5},WMAX=12,RUNWAY_COST=200,MS_COST=100,MS_T=10,MS_HP=120,RUNWAY_T=12,YARD_COST=100,YARD_T=15,MAX_SHIPS=4,PLANE_T=12,SHIP_SEE=80,SHIP_STAND=95,SUB_TIME=16,WALL=3,START_MONEY=200*2.5,CASTLE_HP=500,TRICKLE=0.5,MAX_TOWERS=40;
 // a base trains one soldier at a time and fields a limited army, so nobody can flood the map
-let TRAIN={piyade:2,atli:3,koc:7,balon:6},POP={piyade:1,atli:1,koc:3,balon:2},POP_CAP=40,FUZE_CD=6,DBR_FIX=100,VER='40';
+let TRAIN={piyade:2,atli:3,koc:7,balon:6},POP={piyade:1,atli:1,koc:3,balon:2},POP_CAP=40,FUZE_CD=6,DBR_FIX=100,VER='41';
 // the lesson: an empty 1v1 map where nothing costs anything and nothing has to be waited for
 const TUT=!!(A&&A.tutorial);
 if(TUT){BUILD_T={denizalti:.5,gemi:.5};for(const k in TBUILD)TBUILD[k]=.2;RUNWAY_T=YARD_T=PLANE_T=.5;FUZE_CD=.5;TRAIN={piyade:.2,atli:.2,koc:.2,balon:.2}}
@@ -1209,7 +1209,13 @@ renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 renderer.toneMapping=THREE.NeutralToneMapping;renderer.toneMappingExposure=1.02;     // bright and colourful, like a board-game diorama, instead of a filmic grey-down
 const scene=new THREE.Scene();const SKY=new THREE.Color('#8ccbf0');scene.background=SKY;scene.fog=new THREE.Fog(SKY,430,1250);
 const camera=new THREE.PerspectiveCamera(62,1,1,2500);
-scene.add(new THREE.HemisphereLight('#e4f4ff','#7d6a4c',1.15));
+scene.add(new THREE.HemisphereLight('#e4f4ff','#7d6a4c',1.05));
+{const fill=new THREE.DirectionalLight('#bcd4ff',.55);fill.position.set(160,90,-140);scene.add(fill)}     // a cool fill from the far side so shapes stay rounded in the shade
+// a sky dome: deep blue overhead fading to a pale haze at the horizon, with a warm glow round the sun
+{const g=new THREE.SphereGeometry(1600,32,16),m=new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,fog:false,uniforms:{sd:{value:new THREE.Vector3(-175,185,125).normalize()}},
+  vertexShader:'varying vec3 vD;void main(){vD=normalize(position);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);gl_Position.z=gl_Position.w;}',
+  fragmentShader:'uniform vec3 sd;varying vec3 vD;void main(){float h=clamp(vD.y,0.,1.);vec3 top=vec3(.33,.58,.86),hor=vec3(.70,.84,.94);vec3 c=mix(hor,top,pow(h,.55));float s=max(dot(vD,sd),0.);c+=vec3(1.,.85,.6)*(pow(s,40.)*.6+pow(s,6.)*.12);gl_FragColor=vec4(c,1.);}'});
+ const sky=new THREE.Mesh(g,m);sky.frustumCulled=false;sky.renderOrder=-1;sky.onBeforeRender=(r,sc,cam)=>sky.position.copy(cam.position);scene.add(sky)}
 const sun=new THREE.DirectionalLight('#fff1d2',2.85);sun.position.set(-175,185,125);sun.castShadow=true;
 const small=Math.min(innerWidth,innerHeight)<700;
 {const lowMem=(navigator.deviceMemory||8)<=4,S0=small?(lowMem?1536:2048):3072;sun.shadow.mapSize.set(S0,S0)}scene.add(sun.target);const SUN_DIR=new THREE.Vector3(-175,185,125).normalize();
@@ -2614,26 +2620,30 @@ function debris(x,z,r){if(!DEB){DEB=new THREE.InstancedMesh(new THREE.Dodecahedr
   DEB.instanceMatrix.needsUpdate=true;DEB.instanceColor.needsUpdate=true}
 // gulls wheeling over the water in loose flocks: two wing poses, flapping out of step
 let BIRDS=null;
-function drawBirds(){if(!BIRDS){const mk=up=>{     // a gull: a white body and head, yellow bill, grey wings bent at the wrist with black tips
-      const parts=[],C=(c)=>new THREE.Color(c),put=(g,c)=>{g=g.index?g.toNonIndexed():g;const n=g.attributes.position.count,a=new Float32Array(n*3),cc=C(c);for(let k=0;k<n;k++){a[k*3]=cc.r;a[k*3+1]=cc.g;a[k*3+2]=cc.b}g.setAttribute('color',new THREE.BufferAttribute(a,3));g.deleteAttribute('uv');parts.push(g)};
-      const b=new THREE.SphereGeometry(1,8,6);b.scale(.16,.15,.55);put(b,'#f4f4f2');const h=new THREE.SphereGeometry(.13,8,6);h.translate(0,.08,.5);put(h,'#f8f8f6');const bk=new THREE.ConeGeometry(.04,.18,5);bk.rotateX(Math.PI/2);bk.translate(0,.06,.68);put(bk,'#e8b830');
-      const tl=new THREE.BufferGeometry();tl.setAttribute('position',new THREE.Float32BufferAttribute([0,0,-.4, -.17,0,-.75, .17,0,-.75],3));put(tl,'#f0f0ee');
-      const w1=up?.42:-.12,w2=up?.75:-.42;for(const sd of[-1,1]){const W=(pts,c)=>{const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pts.flat(),3));put(g,c)};
-        const r=[sd*.12,0,.18],r2=[sd*.12,0,-.22],e=[sd*.75,w1,.1],e2=[sd*.75,w1,-.25],t=[sd*1.45,w2,-.12],t2=[sd*1.35,w2,-.3];W([r,r2,e,e,r2,e2],'#b8bec4');W([e,e2,t,t,e2,t2],'#1e2226')}
+function drawBirds(){if(!BIRDS){const mk=(ang,elb)=>{     // a herring gull: a smooth white body tapering to the tail, grey back and wings bent at the wrist, black tips with a white spot, yellow bill; ang: shoulder lift, elb: how far the hand folds
+      const parts=[],C=(c)=>new THREE.Color(c),put=(g,c)=>{g=g.index?g.toNonIndexed():g;const n=g.attributes.position.count,a=new Float32Array(n*3),cc=C(c);for(let k=0;k<n;k++){a[k*3]=cc.r;a[k*3+1]=cc.g;a[k*3+2]=cc.b}g.setAttribute('color',new THREE.BufferAttribute(a,3));g.deleteAttribute('uv');g.deleteAttribute('normal');parts.push(g)};
+      const b=new THREE.LatheGeometry([[0,-.62],[.07,-.5],[.13,-.25],[.17,0],[.16,.22],[.1,.4],[0,.46]].map(([r,y])=>new THREE.Vector2(r,y)),10);b.rotateX(Math.PI/2);b.scale(1,.9,1);put(b,'#f6f6f3');
+      const h=new THREE.SphereGeometry(.12,10,8);h.translate(0,.07,.5);put(h,'#fafaf8');const bk=new THREE.ConeGeometry(.035,.17,6);bk.rotateX(Math.PI/2);bk.translate(0,.05,.68);put(bk,'#f0c030');const sp=new THREE.SphereGeometry(.02,4,3);sp.translate(0,.035,.66);put(sp,'#d03a20');
+      for(const sd of[-1,1]){const ey=new THREE.SphereGeometry(.018,4,3);ey.translate(sd*.085,.1,.56);put(ey,'#111')}
+      const tl=new THREE.BufferGeometry();tl.setAttribute('position',new THREE.Float32BufferAttribute([0,.02,-.45, -.15,.02,-.78, .15,.02,-.78, 0,.02,-.45, .15,.02,-.78, -.15,.02,-.78],3));put(tl,'#efefec');
+      const W=(pts,c)=>{const g=new THREE.BufferGeometry();const q=pts.flat();g.setAttribute('position',new THREE.Float32BufferAttribute(q.concat([...Array(q.length/9)].flatMap((_,t)=>[q[t*9+3],q[t*9+4],q[t*9+5],q[t*9],q[t*9+1],q[t*9+2],q[t*9+6],q[t*9+7],q[t*9+8]])),3));put(g,c)};
+      for(const sd of[-1,1]){const r0=[sd*.1,.04,.2],r1=[sd*.1,.02,-.2],ex=sd*.7*Math.cos(ang),ey=.7*Math.sin(ang),e0=[ex,ey+.02,.16],e1=[ex,ey,-.24],ha=ang-elb,hx=ex+sd*.75*Math.cos(ha),hy=ey+.75*Math.sin(ha),t0=[hx,hy,-.08],t1=[hx-sd*.05,hy,-.28],tp=[hx+sd*.2*Math.cos(ha),hy+.2*Math.sin(ha),-.25];
+        W([r0,r1,e0,e0,r1,e1],'#aab3bb');W([e0,e1,t0,t0,e1,t1],'#b9c1c8');W([t0,t1,tp],'#1d2024');const ws=new THREE.SphereGeometry(.03,4,3);ws.translate(t0[0]*.98+tp[0]*.02,t0[1]+.01,-.15);put(ws,'#ffffff')}
       const g=new THREE.BufferGeometry(),P=[],Cc=[];for(const q of parts){P.push(...q.attributes.position.array);Cc.push(...q.attributes.color.array)}g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('color',new THREE.Float32BufferAttribute(Cc,3));g.computeVertexNormals();
-      const m=new THREE.InstancedMesh(g,new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide}),40);m.count=0;m.frustumCulled=false;scene.add(m);return m};
-    BIRDS={a:mk(1),b:mk(0),f:[...Array(6)].map((_,i)=>({p:i*1.7+.4,q:i*2.3+1.1,A:150+i*25,n:3+i*2,h:[18,34,26,48,40,22][i],sp:.018+i*.004,ship:i<2}))}}
+      const m=new THREE.InstancedMesh(g,new THREE.MeshLambertMaterial({vertexColors:true}),40);m.count=0;m.frustumCulled=false;scene.add(m);return m};
+    // poses: a glide with wings held in a shallow M, and four steps of a wingbeat
+    BIRDS={poses:[mk(.12,.28),mk(.75,.05),mk(.35,.25),mk(-.25,-.1),mk(.1,.45)],f:[...Array(6)].map((_,i)=>({p:i*1.7+.4,q:i*2.3+1.1,A:150+i*25,n:3+i*2,h:[18,34,26,48,40,22][i],sp:.018+i*.004,ship:i<2}))}}
   // each flock wanders the whole sky on its own slow looping course; the birds keep a loose skein, drift about in it, flap a few beats and glide
-  const T=now()/1000;let na=0,nb=0;const ships=[];for(const D of P){for(const u of D.units)if(u.type==='gemi'&&!u.done&&u.fall==null)ships.push(u);for(const o of D.remote.values())if(o.type==='gemi')ships.push(o)}
+  const T=now()/1000;const cnt=[0,0,0,0,0];const ships=[];for(const D of P){for(const u of D.units)if(u.type==='gemi'&&!u.done&&u.fall==null)ships.push(u);for(const o of D.remote.values())if(o.type==='gemi')ships.push(o)}
   for(const F of BIRDS.f){const t=T*F.sp;let cx=Math.sin(t+F.p)*F.A+Math.sin(t*2.3+F.q)*F.A*.35,cz=Math.cos(t*.8+F.q)*F.A+Math.sin(t*1.7+F.p)*F.A*.3,
       vx=Math.cos(t+F.p)+Math.cos(t*2.3+F.q)*.8,vz=-Math.sin(t*.8+F.q)*.8+Math.cos(t*1.7+F.p)*.51,hd=Math.atan2(vx,vz);
     // a couple of flocks trail the warships at sea, wheeling over their wake
     if(F.ship&&ships.length){const sh=ships[(F===BIRDS.f[0]?0:1)%ships.length],a=T*.35+F.p,tx=sh.x+Math.cos(a)*14,tz=sh.z+Math.sin(a)*14;F.fx=F.fx==null?tx:F.fx+(tx-F.fx)*.01;F.fz=F.fz==null?tz:F.fz+(tz-F.fz)*.01;cx=F.fx;cz=F.fz;hd=a+Math.PI}else{F.fx=cx;F.fz=cz}
     for(let k=0;k<F.n;k++){const row=Math.ceil(k/2),sd=k%2?1:-1,lx=sd*row*3.2+Math.sin(T*.4+k*1.9)*2.5,lz=-row*3.4+Math.cos(T*.33+k*2.7)*2.5,c=Math.cos(hd),n=Math.sin(hd),
         x=cx+lx*c+lz*n,z=cz-lx*n+lz*c,y=F.h+Math.sin(k*1.7+T*.5)*4+row*.8+Math.sin(k*2.9)*5;
-      mt.compose(vp.set(x,y,z),qr.setFromEuler(new THREE.Euler(Math.sin(T*.7+k)*.08,hd+Math.sin(T*.5+k*1.3)*.25,Math.sin(T*.9+k)*.3)),vs.set(1.5,1.5,1.5));vs.set(1,1,1);const up=(T*.45+k*.37)%4<.9?Math.sin(T*7+k*1.3)>0:true;
-      if(up&&na<40)BIRDS.a.setMatrixAt(na++,mt);else if(nb<40)BIRDS.b.setMatrixAt(nb++,mt)}}
-  BIRDS.a.count=na;BIRDS.b.count=nb;BIRDS.a.instanceMatrix.needsUpdate=BIRDS.b.instanceMatrix.needsUpdate=true;drawWind(T)}
+      mt.compose(vp.set(x,y,z),qr.setFromEuler(new THREE.Euler(Math.sin(T*.7+k)*.08,hd+Math.sin(T*.5+k*1.3)*.25,Math.sin(T*.9+k)*.3)),vs.set(1.5,1.5,1.5));vs.set(1,1,1);const fl=(T*.45+k*.37)%4<.9,pi=fl?1+(Math.floor((T*6+k*1.3)*4)%4+4)%4:0;     // a few wingbeats, then a long glide on the wind
+      if(cnt[pi]<40)BIRDS.poses[pi].setMatrixAt(cnt[pi]++,mt)}}
+  BIRDS.poses.forEach((m,i)=>{m.count=cnt[i];m.instanceMatrix.needsUpdate=true});drawWind(T)}
 // from high up the wind shows: straight thin streaks of air in a few gusts that drift across the map; now and then a gust leans a little to one side
 let WINDM=null;
 function drawWind(T){const far=clamp((view.d-120)/140,0,1);if(!WINDM){const g=new THREE.PlaneGeometry(1,1,1,10).rotateX(-Math.PI/2);{const P=g.attributes.position;for(let i=0;i<P.count;i++){const z=P.getZ(i);P.setX(i,P.getX(i)*(1-Math.abs(z*2)**2))}}
@@ -3031,7 +3041,10 @@ function mkHud(){
     {const e=q('[data-k=sil]');if(e){e.classList.add('mini');$('rot').append(e)}}     // Erase, Army and Select stand in a column on the right, under the turn buttons — in easy reach of the right thumb
     for(const e of[q('[data-k=duvar]'),q('[data-k=kopru]'),$('bTersane'),$('bPist'),$('bFuzeS')])if(e)$('gYap').append(e);     // walls lead the Build panel
     A.append(sec(A,TL('ASKER YETİŞTİR · birlik alanında bekler','TRAIN · they wait on your muster field')));for(const k of BUY)if(POP[k])A.append(q(`[data-k=${k}]`));
-    for(const e of[$('bBirlik'),$('bSec')])if(e){e.classList.add('mini');$('rot').append(e)}
+    {const e=$('bSec');if(e){e.classList.add('mini');$('rot').append(e)}}
+    {const e=$('bBirlik');if(e){e.classList.add('mini');let o=$('orduBox');if(!o){o=document.createElement('div');o.id='orduBox';document.body.append(o)}o.append(e)}}     // Army stays bottom right
+    // top right, under Settings and Chat: the turn buttons, Erase and Select, then the hide-screen eye
+    {const T=$('tools'),R=$('rot'),E=$('eye');if(T&&R){T.append(R);if(E)T.append(E)}}
     A.append(sec(A,TL('ÖZEL SALDIRI','SPECIAL ATTACKS')));for(const k of BUY)if(!POP[k])A.append(q(`[data-k=${k}]`))}
   mkChat();mkSettings();mkRally();$('laneX').onclick=()=>laneAsk(null);$('laneRot').onclick=()=>{if(RUN)RUN.a+=Math.PI/4};$('laneGo').onclick=runSend;
   $('cmdHome').onclick=orderRally;

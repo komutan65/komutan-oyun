@@ -34,8 +34,10 @@ export const SES={ctx:null,int:.2,last:{},ayar:{muzik:saved.muzik!==false,okcu:s
     if(I>0.28&&q){const o=c.createOscillator(),g=c.createGain();o.frequency.setValueAtTime(110,t);o.frequency.exponentialRampToValueAtTime(46,t+0.3);o.connect(g);g.connect(this.mus);this.env(g,t,0.005,(I-0.28)*0.7*(i%8===0?1.3:1),0,0.45);o.start(t);o.stop(t+0.6)}
     if(this.boss&&i%8===0){const o=c.createOscillator(),g=c.createGain();o.frequency.setValueAtTime(75,t);o.frequency.exponentialRampToValueAtTime(34,t+0.9);o.connect(g);g.connect(this.mus);this.env(g,t,0.005,0.55,0,1.3);o.start(t);o.stop(t+1.5)}},
   ok(k,gap,opt){const c=this.ctx;if(!c||c.state!=='running'||(opt&&!this.ayar[opt]))return false;const n=c.currentTime;if(n-(this.last[k]||0)<gap)return false;this.last[k]=n;return true},
-  // every sound is made here in code, sample by sample: no recordings from anyone else, so nothing to license
+  // every sound is made here in code, except two real recordings: sword clashes and horse hooves (0 A.D. by Wildfire Games, CC BY-SA 3.0, see ses/LISANS-0AD.txt);
+  // the made-up versions play until the recordings have loaded, then step aside
   bake(){const c=this.ctx,R=c.sampleRate,B=this.B={};
+    {const base=new URL('./ses/',import.meta.url),F={kilic:['kilic0','kilic1','kilic2','kilic3'],nal:['nal0','nal1','nal2','nal3']},got={};for(const k in F)for(const n of F[k])fetch(new URL(n+'.mp3',base)).then(r=>r.ok?r.arrayBuffer():Promise.reject()).then(a=>new Promise((ok,no)=>c.decodeAudioData(a,ok,no))).then(b=>{(got[k]=got[k]||[]).push(b);B[k]=got[k]}).catch(()=>{})}
     const mk=(sec,fn)=>{const n=Math.floor(sec*R),b=c.createBuffer(1,n,R),d=b.getChannelData(0);fn(d,n);let m=0;for(let i=0;i<n;i++)m=Math.max(m,Math.abs(d[i]));if(m>0)for(let i=0;i<n;i++)d[i]/=m*1.05;return b};
     const lp=(d,a)=>{let y=0;for(let i=0;i<d.length;i++){y+=a*(d[i]-y);d[i]=y}},hp=(d,a)=>{let x0=0,y=0;for(let i=0;i<d.length;i++){const x=d[i];y=a*(y+x-x0);x0=x;d[i]=y}};
     const nz=()=>Math.random()*2-1,env=(t,a,dcy)=>t<a?t/a:Math.exp(-(t-a)/dcy);
@@ -147,7 +149,7 @@ export const SES={ctx:null,int:.2,last:{},ayar:{muzik:saved.muzik!==false,okcu:s
   bomba(v=1,p=0){if(!this.ok('b',.14,'bomba'))return;{const c=this.ctx,t=c.currentTime,o=c.createOscillator(),g=c.createGain();o.frequency.setValueAtTime(90,t);o.frequency.exponentialRampToValueAtTime(30,t+.45);o.connect(g);g.connect(this.sfx);this.env(g,t,.004,.75*v,0,.5);o.start(t);o.stop(t+.6)}if(this.play('patla',.95*v,p))return;const c=this.ctx,t=c.currentTime,o=c.createOscillator(),g=c.createGain();o.frequency.setValueAtTime(130,t);o.frequency.exponentialRampToValueAtTime(34,t+.5);o.connect(g);g.connect(this.sfx);this.env(g,t,.005,1.3*v,0,.6);o.start(t);o.stop(t+.7);this.hit(t,'lowpass',2200,160,1.2*v,.55)},
   dalga(v=1,p=0){if(this.ok('d',.4,'su'))this.play('dalga',.45*v,p)},
   kisne(v=1,p=0){if(this.ok('ks',5,'atli'))this.play('kisne',.5*v,p,.95+Math.random()*.1)},
-  atli(v=1){if(!this.ok('a',1.26,'atli'))return;if(Math.random()<.1)this.kisne(v);if(!this.play('nal',.62*v)){const t=this.ctx.currentTime;[0,.1,.19,.27].forEach((d,i)=>this.hit(t+d,'bandpass',i%2?520:380,180,.55*v,.06,3))}},
+  atli(v=1){if(!this.ok('a',1.5,'atli'))return;if(Math.random()<.1)this.kisne(v);if(!this.play('nal',.62*v)){const t=this.ctx.currentTime;[0,.1,.19,.27].forEach((d,i)=>this.hit(t+d,'bandpass',i%2?520:380,180,.55*v,.06,3))}},
   su(v=1){if(!this.ok('s',2.6,'su'))return;if(!this.play('su',.1*v,0,1.15,1100)){const t=this.ctx.currentTime,r=Math.random();this.hit(t,'lowpass',520+r*260,150,.22*v,.45,.6)}},
   para(){if(!this.ok('p',.06))return;const c=this.ctx,t=c.currentTime,o=c.createOscillator(),g=c.createGain();o.type='triangle';o.frequency.setValueAtTime(1320,t);o.frequency.setValueAtTime(1760,t+.06);o.connect(g);g.connect(this.sfx);this.env(g,t,.003,.22,.05,.16);o.start(t);o.stop(t+.3)}
 };
