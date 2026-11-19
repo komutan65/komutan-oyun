@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {SES} from './ses.js?v=20261119c';
+import {SES} from './ses.js?v=20261119d';
 /* Dört Cephe. Each client simulates its own square (and any computer rivals);
    units sent to a player are simulated by that player. Others see 2 snapshots a second. */
 const A=window.ARENA,EN=window.LANG==='en',TL=(t,e)=>EN?e:t;
@@ -10,7 +10,7 @@ const num=(v,d=0)=>typeof v==='number'&&isFinite(v)?v:d;
 // ---------- rules ----------
 let BUILD_T={denizalti:16,gemi:20},TBUILD={ok:7,top:10,hava:9,roket:14,duvar:2.5},WMAX=12,RUNWAY_COST=200,MS_COST=100,MS_T=10,MS_HP=120,RUNWAY_T=12,YARD_COST=100,YARD_T=15,MAX_SHIPS=4,PLANE_T=12,SHIP_SEE=80,SHIP_STAND=95,SUB_TIME=16,WALL=3,START_MONEY=200*2.5,CASTLE_HP=500,TRICKLE=0.5,MAX_TOWERS=40;
 // a base trains one soldier at a time and fields a limited army, so nobody can flood the map
-let TRAIN={piyade:2,atli:3,koc:7,balon:6},POP={piyade:1,atli:1,koc:3,balon:2},POP_CAP=40,FUZE_CD=6,DBR_FIX=100,VER='41';
+let TRAIN={piyade:2,atli:3,koc:7,balon:6},POP={piyade:1,atli:1,koc:3,balon:2},POP_CAP=40,FUZE_CD=6,DBR_FIX=100,VER='42';
 // the lesson: an empty 1v1 map where nothing costs anything and nothing has to be waited for
 const TUT=!!(A&&A.tutorial);
 if(TUT){BUILD_T={denizalti:.5,gemi:.5};for(const k in TBUILD)TBUILD[k]=.2;RUNWAY_T=YARD_T=PLANE_T=.5;FUZE_CD=.5;TRAIN={piyade:.2,atli:.2,koc:.2,balon:.2}}
@@ -3013,7 +3013,7 @@ function mkChat(){
 function setTarget(s){target=s;for(const b of $('gTgt').querySelectorAll('button'))b.classList.toggle('on',+b.dataset.s===s);if(s!=null)tip(TL('Hedef: ','Target: ')+P[s].name)}
 function anyFoe(){const c=castlePos(ME.seat),f=P.filter(p=>p.on&&!p.dead&&p!==ME&&!allied(p.seat,ME.seat)).sort((a,b)=>{const A=castlePos(a.seat),B=castlePos(b.seat);return Math.hypot(A.x-c.x,A.z-c.z)-Math.hypot(B.x-c.x,B.z-c.z)});return f.length?f[0].seat:null}
 function liveTarget(){if(target!=null&&!P[target].dead)return target;const f=P.find(p=>p.on&&!p.dead&&!allied(p.seat,ME.seat));setTarget(f?f.seat:null);return target}
-function toggleHud(){const off=document.body.classList.toggle('nohud');$('eye').textContent=off?'🙈':'👁'}
+function toggleHud(){const off=document.body.classList.toggle('nohud'),E=$('eye');E.textContent=off?'🙈':'👁';if(off){document.body.append(E);E.classList.add('float')}else{E.classList.remove('float');$('tools').append(E)}}     // the eye leaves the hidden panel so it can always bring the screen back
 let moneyShown=null;
 // a tip may carry {au}: the gold coin
 function tip(m){const el=$('tip');el.textContent='';String(m).split('{au}').forEach((t,i)=>{if(i){const c=document.createElement('i');c.className='au';el.append(c)}el.append(t)});el.hidden=false;tipT=3}
@@ -3042,9 +3042,9 @@ function mkHud(){
     for(const e of[q('[data-k=duvar]'),q('[data-k=kopru]'),$('bTersane'),$('bPist'),$('bFuzeS')])if(e)$('gYap').append(e);     // walls lead the Build panel
     A.append(sec(A,TL('ASKER YETİŞTİR · birlik alanında bekler','TRAIN · they wait on your muster field')));for(const k of BUY)if(POP[k])A.append(q(`[data-k=${k}]`));
     {const e=$('bSec');if(e){e.classList.add('mini');$('rot').append(e)}}
-    {const e=$('bBirlik');if(e){e.classList.add('mini');let o=$('orduBox');if(!o){o=document.createElement('div');o.id='orduBox';document.body.append(o)}o.append(e)}}     // Army stays bottom right
+    {const e=$('bBirlik');if(e){e.classList.add('mini');$('rot').append(e)}}     // Army joins Select in the right-hand column, leaving the bottom to the three menu buttons
     // top right, under Settings and Chat: the turn buttons, Erase and Select, then the hide-screen eye
-    {const T=$('tools'),R=$('rot'),E=$('eye');if(T&&R){T.append(R);if(E)T.append(E)}}
+    {const T=$('tools'),R=$('rot'),E=$('eye');if(T&&R){T.append(R);if(E)T.append(E)}const V=$('ver'),S=$('setP');if(V&&S){S.append(V);V.classList.add('inset')}}     // the version number lives in Settings, out of the way
     A.append(sec(A,TL('ÖZEL SALDIRI','SPECIAL ATTACKS')));for(const k of BUY)if(!POP[k])A.append(q(`[data-k=${k}]`))}
   mkChat();mkSettings();mkRally();$('laneX').onclick=()=>laneAsk(null);$('laneRot').onclick=()=>{if(RUN)RUN.a+=Math.PI/4};$('laneGo').onclick=runSend;
   $('cmdHome').onclick=orderRally;
