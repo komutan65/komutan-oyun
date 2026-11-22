@@ -211,7 +211,7 @@ function botThink(p,t){if(p.st!=='yer')return;const C=CLS[p.cls],z=zoneNow(t);p.
   for(const k of['silah','zirh','iksir','ok'])if(k!=='ok'||p.inv.ok<8)if(canCraft(p,k)){craft(p,k);break}
   const dz=Math.hypot(p.x-z.n.x,p.z-z.n.z),outside=Math.hypot(p.x-z.x,p.z-z.z)>z.r-8,late=z.wait<35||z.shrink;
   let f=p.foe&&p.foe.st==='yer'&&p.foe.hp>0&&Math.hypot(p.foe.x-p.x,p.foe.z-p.z)<45?p.foe:null;
-  if(!f){const o=foeNear(p,p.cls==='okcu'?32:24);if(o&&(p.hp>p.mhp*.45||o.hp<p.hp)&&(p.brave??(p.brave=R()))>.25)f=o}
+  if(!f){const early=t<zones[0].t+45,o=foeNear(p,early?7:p.cls==='okcu'?32:24);/* for the first minute they mostly gather, and fight only who comes right up to them */if(o&&(p.hp>p.mhp*.45||o.hp<p.hp)&&(p.brave??(p.brave=R()))>.25)f=o}
   if(f&&p.hp<p.mhp*.25&&f.hp>p.hp){p.goal={x:p.x+(p.x-f.x)*3,z:p.z+(p.z-f.z)*3,run:1};p.foe=null;return}
   if(f&&!(outside&&!late&&false)){p.foe=f;const d=Math.hypot(f.x-p.x,f.z-p.z);if(p.cls==='okcu'&&p.inv.ok>0){p.goal=d<12?{x:p.x+(p.x-f.x),z:p.z+(p.z-f.z)}:d>26?{x:f.x,z:f.z}:null;if(d<34)p.want='atk'}else{p.goal={x:f.x,z:f.z};if(d<C.rng+.4)p.want='atk'}return}
   p.foe=null;
@@ -368,7 +368,7 @@ function draw(dt,t){
     if(p.st==='olu'){clip='die';ph=Math.min(.999,(t-(p.dieT||t))/.9)}
     else if(p.st==='fall'||p.st==='para'){clip='fall';ph=t*.7}
     else if(p.act){clip=p.act.k==='atk'?'atk':'work';ph=Math.min(.999,p.act.t/p.act.dur)}
-    else if(p.mv>.6){clip='run';p.ph=(p.ph+dt*p.mv/7.2)%1;ph=p.ph}
+    else if(p.mv>.6){clip='run';p.ph=(p.ph+dt*p.mv/5.2)%1;ph=p.ph}
     if(p.st==='olu'&&t-(p.dieT||t)>14)continue;
     q.setFromAxisAngle(UP,p.a);m4.compose(vp.set(p.x,p.y,p.z),q,vs);tc.copy(p.col);if(p.flash>0)tc.multiplyScalar(1+p.flash*1.6);chrPush(p.cls,clip,ph,m4,tc);
     if(p.st==='para'&&ci<chute.length){const c=chute[ci++];c.visible=true;c.position.set(p.x,p.y+.4,p.z);c.rotation.y=p.a;c.children[0].material.color.copy(p.col)}

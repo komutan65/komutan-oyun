@@ -54,7 +54,7 @@ function draw(){
 function tryAuto(){
   if(code||started||!ch)return;
   const list=players();if(!list.length||list[0].id!==id)return;
-  if(list.length>=MAXP||(list.length>=2&&Date.now()-joinedAt>=FILL_MS))go(list.slice(0,MAXP));
+  if(list.length>=MAXP||(list.length>=(big?1:2)&&Date.now()-joinedAt>=FILL_MS))go(list.slice(0,MAXP));     // the big map fills up with computer fighters, so one person can start it
 }
 // in a duel the two players take opposite corners, so neither has a shorter road
 const seats=list=>{const l=list.map(p=>({id:p.id,name:p.name,bot:p.bot}));return duel?[l[0],l[1]]:l};
@@ -71,7 +71,7 @@ async function enter(m){
   onlineAt(m.tutorial?'egitim':'oyun');
   window.ARENA={seat,id,room:String(m.room),players:m.players,sb,duel:!!m.duel,tutorial:!!m.tutorial,big:!!m.big,seed:m.seed>>>0,t0:+m.t0||0};
   $('lStatus').textContent=L('Harita hazırlanıyor…','Preparing the map…');
-  try{if(m.big){$('lobby').hidden=true;await import('./meydan/oyun.js?v=20261123a')}else{await import('./oyun.js?v=20261123a');$('lobby').hidden=true}}
+  try{if(m.big){$('lobby').hidden=true;await import('./meydan/oyun.js?v=20261123b')}else{await import('./oyun.js?v=20261123b');$('lobby').hidden=true}}
   catch(e){console.error(e);err(L('Oyun yüklenemedi. Sayfayı yenile.','The game failed to load. Refresh the page.'))}
 }
 function join(name){

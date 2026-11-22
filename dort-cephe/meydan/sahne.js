@@ -80,7 +80,9 @@ export function nodeGeos(){
   return[pine,oak,rock,iron,gold,bush,stump,cone,blob]}
 const VIS_R=300,FAR_R=640,BK=40,BN=HALF*2/BK;
 export function makeNodes(){const geos=nodeGeos(),mat=new THREE.MeshLambertMaterial({vertexColors:true}),caps=S.small?[1600,2600,700,400,80,400,500,3500,4500]:[2400,3800,900,500,100,500,700,5000,6500];
-  const IM=geos.map((g,i)=>{const m=new THREE.InstancedMesh(g,mat,caps[i]);m.count=0;m.frustumCulled=false;m.castShadow=i<6;m.receiveShadow=i>=2&&i<6;S.scene.add(m);return m});
+  const IM=geos.map((g,i)=>{const m=new THREE.InstancedMesh(g,mat,caps[i]);m.count=0;m.frustumCulled=false;m.castShadow=false;m.receiveShadow=i>=2&&i<6;S.scene.add(m);return m});
+  // the few close to the player cast shadows; the hundreds further off do not, which saves drawing them all twice
+  for(let i=0;i<6;i++){const m=new THREE.InstancedMesh(geos[i],mat,S.small?160:260);m.count=0;m.frustumCulled=false;m.castShadow=true;m.receiveShadow=i>=2;S.scene.add(m);IM.push(m)}
   // every node in the world, made once; bucketed for quick lookups near any point
   const list=[],B=Array.from({length:BN*BN},()=>[]);
   for(let i=0;i<NC;i++)for(let j=0;j<NC;j++){const n=nodeAt(i,j);if(!n)continue;n.i=list.length;list.push(n);B[clamp(Math.floor((n.x+HALF)/BK),0,BN-1)+clamp(Math.floor((n.z+HALF)/BK),0,BN-1)*BN].push(n)}
@@ -93,7 +95,7 @@ export function updateNodes(px,pz){const N=S.nodes;if(!N.dirty&&Math.hypot(px-N.
   const put=(k,x,y,z,s,a,sh)=>{const m=IM[k];if(cnt[k]>=m.instanceMatrix.count)return;q.setFromAxisAngle(UP,a);m4.compose(vp.set(x,y,z),q,vs.set(s,s*(sh||1),s));m.setMatrixAt(cnt[k],m4);tc.setScalar(.86+((a*7.3)%1)*.28);m.setColorAt(cnt[k],tc);cnt[k]++};
   nodesNear(px,pz,FAR_R,n=>{const d=Math.hypot(n.x-px,n.z-pz);if(d>FAR_R)return;const tree=n.t<2;
     if(d>VIS_R){if(tree&&n.hp>0)put(n.t===0?7:8,n.x,n.y-.3,n.z,n.s*1.25,n.a);return}
-    if(n.hp>0)put(n.t,n.x,n.y-.15,n.z,n.t<2?n.s*1.3:n.t===5?n.s:n.s*(n.t===2?1:1.1),n.a,n.t<2?1+(n.s-.8)*.6:1);else if(tree)put(6,n.x,n.y-.05,n.z,n.s*1.2,n.a)});
+    if(n.hp>0)put(d<75&&cnt[n.t+9]<IM[n.t+9].instanceMatrix.count?n.t+9:n.t,n.x,n.y-.15,n.z,n.t<2?n.s*1.3:n.t===5?n.s:n.s*(n.t===2?1:1.1),n.a,n.t<2?1+(n.s-.8)*.6:1);else if(tree)put(6,n.x,n.y-.05,n.z,n.s*1.2,n.a)});
   IM.forEach((m,k)=>{m.count=cnt[k];m.instanceMatrix.needsUpdate=true;if(m.instanceColor)m.instanceColor.needsUpdate=true})}
 
 // ---------- the named places: broken walls, a fallen tower, chests ----------
@@ -170,7 +172,7 @@ export function mapImage(n){const c=document.createElement('canvas');c.width=c.h
 
 // ---------- grass tufts, flowers and pebbles round the player ----------
 export function makeClutter(){const blades=[],cl=[];for(let b=0;b<5;b++){const a=b/5*Math.PI,h=.38+(b%3)*.12,w=.16,c=Math.cos(a)*w,sn=Math.sin(a)*w,l=Math.cos(a+1)*.08,lz=Math.sin(a+1)*.08;
-    blades.push(-c,0,-sn, c,0,sn, l,h,lz, c,0,sn, -c,0,-sn, l,h,lz);for(let k=0;k<2;k++)cl.push(.55,.62,.3, .55,.62,.3, 1,1,.7)}
+    blades.push(-c,0,-sn, c,0,sn, l,h,lz, c,0,sn, -c,0,-sn, l,h,lz);for(let k=0;k<2;k++)cl.push(.5,.6,.32, .5,.6,.32, .88,.98,.6)}
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(blades,3));g.setAttribute('color',new THREE.Float32BufferAttribute(cl,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(new Array(blades.length/3).fill(0).flatMap(()=>[0,1,0]),3));
   const gm=new THREE.MeshLambertMaterial({vertexColors:true});
   const fl=merge([col(new THREE.CylinderGeometry(.015,.015,.35,3).translate(0,.17,0),'#4f7a2c'),col(new THREE.IcosahedronGeometry(.08,0).translate(0,.37,0),'#ffffff')]);
