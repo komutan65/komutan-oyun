@@ -5,6 +5,10 @@ import {HALF,height,groundCol,NODE,nodeAt,NC,CASTLES} from './dunya.js';
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 export const S={};
 
+// the shadow box follows the player, stepped in whole shadow-map texels as seen from the sun, so shadow edges never crawl or flicker
+const SUN_D=new THREE.Vector3(-120,180,90).normalize(),SU=new THREE.Vector3().crossVectors(SUN_D,new THREE.Vector3(0,1,0)).normalize(),SV=new THREE.Vector3().crossVectors(SU,SUN_D).normalize(),SP=new THREE.Vector3();
+export function placeSun(x,y,z){const sun=S.sun,tex=190/sun.shadow.mapSize.x;SP.set(x,y,z);let a=SP.dot(SU),b=SP.dot(SV);const c=SP.dot(SUN_D);a=Math.round(a/tex)*tex;b=Math.round(b/tex)*tex;
+  SP.copy(SU).multiplyScalar(a).addScaledVector(SV,b).addScaledVector(SUN_D,c);sun.target.position.copy(SP);sun.position.copy(SP).addScaledVector(SUN_D,330);sun.target.updateMatrixWorld()}
 export function makeScene(cv,small){
   const renderer=new THREE.WebGLRenderer({canvas:cv,antialias:!small,powerPreference:'high-performance'});
   renderer.setPixelRatio(Math.min(devicePixelRatio||1,small?1.3:1.6));renderer.setSize(innerWidth,innerHeight,false);
@@ -13,7 +17,7 @@ export function makeScene(cv,small){
   const camera=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,.5,3400);
   scene.add(new THREE.HemisphereLight('#dfeaff','#4f5f35',1.0));
   const sun=new THREE.DirectionalLight('#fff0d6',2.5);sun.position.set(-120,180,90);sun.castShadow=true;const sz=small?1024:2048;sun.shadow.mapSize.set(sz,sz);
-  const sc=sun.shadow.camera;sc.left=-70;sc.right=70;sc.top=70;sc.bottom=-70;sc.near=10;sc.far=560;sun.shadow.bias=-.0005;sun.shadow.normalBias=.5;scene.add(sun,sun.target);
+  const sc=sun.shadow.camera;sc.left=-95;sc.right=95;sc.top=95;sc.bottom=-95;sc.near=10;sc.far=700;sun.shadow.bias=-.0009;sun.shadow.normalBias=.7;scene.add(sun,sun.target);
   const fill=new THREE.DirectionalLight('#a9c0ff',.38);fill.position.set(120,60,-100);scene.add(fill);
   // sky dome with a soft sun and a few painted clouds
   {const g=new THREE.SphereGeometry(3200,32,16),m=new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,fog:false,uniforms:{sd:{value:new THREE.Vector3(-120,180,90).normalize()}},
@@ -60,7 +64,7 @@ function groundGeo(x0,z0,size,n,useGrid){const st=size/n,N=n+1,H=new Float32Arra
 const CHUNK=120,CN=HALF*2/CHUNK,NEAR=2;
 export function makeGround(){const {scene,small}=S,tex=detailTex();
   const near=groundMat(tex,false),far=groundMat(tex,true);
-  const fm=new THREE.Mesh(groundGeo(-HALF-60,-HALF-60,HALF*2+120,small?160:210),far.m);scene.add(fm);
+  const fm=new THREE.Mesh(groundGeo(-HALF-60,-HALF-60,HALF*2+120,small?180:230),far.m);scene.add(fm);
   S.ground={mat:near.m,U:far.U,chunks:new Map(),queue:[],cx:null,cz:null};
   const nc=document.createElement('canvas');nc.width=nc.height=128;{const g=nc.getContext('2d'),id=g.createImageData(128,128);for(let j=0;j<128;j++)for(let i=0;i<128;i++){const a=Math.sin(i/128*6.283*3+Math.sin(j/128*6.283*2)*1.3),b=Math.sin(j/128*6.283*4+Math.sin(i/128*6.283*3)*1.1),k=(j*128+i)*4;id.data[k]=128+a*38;id.data[k+1]=128+b*38;id.data[k+2]=255;id.data[k+3]=255}g.putImageData(id,0,0)}
   const nt=new THREE.CanvasTexture(nc);nt.wrapS=nt.wrapT=THREE.RepeatWrapping;nt.repeat.set(160,160);
@@ -98,12 +102,12 @@ export function nodeGeos(){
   const bush=merge(bushL);
   const stump=merge([col(new THREE.CylinderGeometry(.3,.38,.5,7).translate(0,.25,0),'#6b4a2e'),col(new THREE.CylinderGeometry(.29,.29,.02,7).translate(0,.51,0),'#c9a36b')]);
   // far trees: few triangles, the same silhouette and colour as the near ones
-  const cone=merge([grad(new THREE.ConeGeometry(1.7,6.2,6).translate(0,4.0,0),'#1f3f22','#46783a',1,7),col(new THREE.CylinderGeometry(.2,.25,1.2,4).translate(0,.6,0),'#4a3322')]);
-  const blob=merge([grad(new THREE.IcosahedronGeometry(2.3,0).translate(0,3.8,0),'#305b24','#6fa244',1.5,6),col(new THREE.CylinderGeometry(.25,.32,2.2,4).translate(0,1.1,0),'#4a3322')]);
+  const cone=merge([grad(new THREE.ConeGeometry(1.8,3.4,7,1,true).translate(0,3.0,0),'#1f3f22','#3f7036',1.3,4.7),grad(new THREE.ConeGeometry(1.25,3,7,1,true).translate(0,4.9,0),'#28492a','#4c7f3c',3.4,6.4),col(new THREE.CylinderGeometry(.2,.25,1.4,4,1,true).translate(0,.7,0),'#4a3322')]);
+  const blob=merge([grad(jitter(new THREE.IcosahedronGeometry(2.3,0),.25,41).scale(1.1,.95,1.1).translate(0,3.8,0),'#2c5522','#6a9e42',1.6,6),col(new THREE.CylinderGeometry(.25,.32,2.2,3,1,true).translate(0,1.1,0),'#4a3322')]);
   return[pine,oak,rock,iron,gold,bush,stump,cone,blob]}
 // leaves sway in the wind (more at the top); the far copies too, so nothing jumps when they swap
 function swayMat(){const m=new THREE.MeshLambertMaterial({vertexColors:true});const T={value:0};m.onBeforeCompile=sh=>{sh.uniforms.uT=T;sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nuniform float uT;').replace('#include <begin_vertex>','#include <begin_vertex>\n#ifdef USE_INSTANCING\n{vec4 wp=instanceMatrix*vec4(0.,0.,0.,1.);float k=max(0.,position.y-1.5)*.035;transformed.x+=sin(uT*1.3+wp.x*.05+wp.z*.07)*k;transformed.z+=cos(uT*1.1+wp.x*.06)*k*.7;}\n#endif\n')};m.userData.T=T;return m}
-const NEAR_T=190,ROCK_R=420;
+const NEAR_T=230,ROCK_R=420,FAR_T=S_FAR();function S_FAR(){return S.small?950:1150}
 export function makeNodes(){const geos=nodeGeos(),mat=swayMat(),rmat=new THREE.MeshLambertMaterial({vertexColors:true}),small=S.small;
   const list=[],BK=40,BN=HALF*2/BK,B=Array.from({length:BN*BN},()=>[]);
   for(let i=0;i<NC;i++)for(let j=0;j<NC;j++){const n=nodeAt(i,j);if(!n)continue;n.y=groundAt(n.x,n.z);n.i=list.length;list.push(n);B[clamp(Math.floor((n.x+HALF)/BK),0,BN-1)+clamp(Math.floor((n.z+HALF)/BK),0,BN-1)*BN].push(n)}
@@ -122,7 +126,7 @@ export function updateNodes(px,pz,t){const N=S.nodes;N.mat.userData.T.value=t;if
   // every tree on the map is drawn: the near ones in detail, the rest as light far copies
   for(const n of N.list){const d=Math.hypot(n.x-px,n.z-pz),tree=n.t<2;
     if(tree){if(n.hp<=0){if(d<NEAR_T)put(6,n.x,n.y-.05,n.z,n.s*1.2,n.a);continue}
-      const sc=n.s*1.3,sh=1+(n.s-.8)*.6;if(d<NEAR_T){if(d<75&&put(n.t+9,n.x,n.y-.15,n.z,sc,n.a,sh))continue;if(put(n.t,n.x,n.y-.15,n.z,sc,n.a,sh))continue}put(n.t===0?7:8,n.x,n.y-.3,n.z,sc*.95,n.a,sh);continue}
+      const sc=n.s*1.3,sh=1+(n.s-.8)*.6;if(d<NEAR_T){if(d<75&&put(n.t+9,n.x,n.y-.15,n.z,sc,n.a,sh))continue;if(put(n.t,n.x,n.y-.15,n.z,sc,n.a,sh))continue}if(d<FAR_T)put(n.t===0?7:8,n.x,n.y-.3,n.z,sc*.95,n.a,sh);continue}
     const RR=n.t===5?260:ROCK_R;if(n.hp<=0||d>RR)continue;const sc=(n.t===5?n.s:n.s*(n.t===2?1:1.1))*Math.min(1,(RR-d)/50);     /* they shrink away at the edge instead of popping */if(d<75&&put(n.t+9,n.x,n.y-.15,n.z,sc,n.a))continue;put(n.t,n.x,n.y-.15,n.z,sc,n.a)}
   IM.forEach((m,k)=>{m.count=cnt[k];m.instanceMatrix.needsUpdate=true;if(m.instanceColor)m.instanceColor.needsUpdate=true})}
 
@@ -157,32 +161,56 @@ function brickTex(){const c=document.createElement('canvas');c.width=c.height=25
 // a box whose bricks stay brick-sized whatever the box's size
 function tbox(w,h,d,c){const g=new THREE.BoxGeometry(w,h,d),uv=g.attributes.uv,dims=[[d,h],[d,h],[w,d],[w,d],[w,h],[w,h]];for(let f=0;f<6;f++)for(let k=0;k<4;k++){const i=f*4+k;uv.setXY(i,uv.getX(i)*dims[f][0]/2.6,uv.getY(i)*dims[f][1]/2.6)}return col(g,c||'#ffffff')}
 function tcyl(r1,r2,h,n,c,open){const g=new THREE.CylinderGeometry(r1,r2,h,n,1,!!open),uv=g.attributes.uv;for(let i=0;i<uv.count;i++)uv.setXY(i,uv.getX(i)*6.283*r1/2.6,uv.getY(i)*h/2.6);return col(g,c||'#ffffff')}
+// three kinds of castle: round towers and a square keep; square towers and a round keep in warm sandstone; tall dark walls with eight-sided towers
 export function makeCastles(){const tex=brickTex(),stoneM=new THREE.MeshLambertMaterial({map:tex,vertexColors:true}),list=[];
-  for(const C of CASTLES){const lower=[],upper=[],roof=[],segs=[],L=CW,H=7,T=1.8,c=Math.cos(C.a),s=Math.sin(C.a);
+  for(const C of CASTLES){const v=C.k%3,lower=[],upper=[],roof=[],segs=[],L=CW,H=v===2?8.5:7,T=1.8,c=Math.cos(C.a),s=Math.sin(C.a);
+    const ST=['#ffffff','#f2dfbd','#b9bcc8'][v],CAP=['#e8e4dc','#fff0d0','#d0d2dc'][v];
     const W=(x,z)=>({x:C.x+x*c+z*s,z:C.z-x*s+z*c});const add=(arr,g,x,y,z,ry)=>{if(ry)g.rotateY(ry);g.translate(x,y,z);arr.push(g)};
     const wall=(x1,z1,x2,z2)=>{const len=Math.hypot(x2-x1,z2-z1),a=Math.atan2(x2-x1,z2-z1),mx=(x1+x2)/2,mz=(z1+z2)/2;
-      add(lower,tbox(T,H*.4,len),mx,H*.2,mz,a);add(upper,tbox(T,H*.6,len),mx,H*.7,mz,a);
-      const n=Math.floor(len/1.6);for(let k=0;k<n;k++){const u=-len/2+(k+.5)*len/n,ox=Math.sin(a)*u,oz=Math.cos(a)*u,nx=Math.cos(a),nz=-Math.sin(a),out=(mx*nx+mz*nz)>0?1:-1;if(k%2===0)add(upper,tbox(.5,1,len/n*.9,'#e8e4dc'),mx+ox+nx*out*.6,H+.5,mz+oz+nz*out*.6,a)}
+      add(lower,tbox(T,H*.4,len,ST),mx,H*.2,mz,a);add(upper,tbox(T,H*.6,len,ST),mx,H*.7,mz,a);
+      const n=Math.floor(len/1.6);for(let k=0;k<n;k++){const u=-len/2+(k+.5)*len/n,ox=Math.sin(a)*u,oz=Math.cos(a)*u,nx=Math.cos(a),nz=-Math.sin(a),out=(mx*nx+mz*nz)>0?1:-1;if(k%2===0)add(upper,tbox(.5,1,len/n*.9,CAP),mx+ox+nx*out*.6,H+.5,mz+oz+nz*out*.6,a)}
+      // a stone string course and a sloped plinth at the foot: walls that look built, not boxes
+      add(lower,tbox(T+.5,.9,len,CAP),mx,.3,mz,a);add(upper,tbox(T+.25,.25,len,CAP),mx,H*.55,mz,a);
       const p=W(x1,z1),q2=W(x2,z2);segs.push([p.x,p.z,q2.x,q2.z,1.3])};
     wall(-L,-L,L,-L);wall(L,-L,L,L);wall(-L,-L,-L,L);wall(-L,L,-3.2,L);wall(3.2,L,L,L);
-    for(const[x,z]of[[-L,-L],[L,-L],[-L,L],[L,L]]){add(lower,tcyl(3,3.3,4,14),x,2,z);add(upper,tcyl(3,3,7,14),x,7.5,z);add(upper,tcyl(3.4,3,1,14,'#e8e4dc'),x,11.5,z);
-      for(let k=0;k<10;k+=2){const a=k/10*6.283;add(upper,tbox(.7,.9,.5,'#e8e4dc'),x+Math.cos(a)*3.1,12.4,z+Math.sin(a)*3.1,-a)}
-      const r=new THREE.ConeGeometry(3.7,4.6,14);r.translate(x,14.3,z);roof.push(col(r,'#ffffff'));const p=W(x,z);segs.push([p.x,p.z,p.x,p.z,3.6])}
-    for(const sd of[-1,1]){add(lower,tbox(3.4,4,3.4),sd*4.9,2,L,0);add(upper,tbox(3.4,6.5,3.4),sd*4.9,7.25,L,0);for(const[ox,oz]of[[-1.2,-1.2],[1.2,-1.2],[-1.2,1.2],[1.2,1.2]])add(upper,tbox(.7,.9,.7,'#e8e4dc'),sd*4.9+ox,10.95,L+oz,0)}
-    add(upper,tbox(6.4,2.4,2.2),0,7.2,L,0);for(let k=-2;k<=2;k++){const g=new THREE.BoxGeometry(.12,1.4,.12);g.translate(k*1.1,5.5,L+.6);upper.push(col(g,'#2a2420'))}{const g=new THREE.BoxGeometry(5.2,.14,.12);g.translate(0,5,L+.6);upper.push(col(g,'#2a2420'))}     /* the portcullis, drawn up */
-    add(lower,tbox(10,5,10),0,2.5,-3,0);add(upper,tbox(10,9,10),0,9.5,-3,0);add(upper,tbox(10.8,.8,10.8,'#e8e4dc'),0,14.4,-3,0);
-    for(let k=0;k<6;k++)for(const sd of[-1,1]){add(upper,tbox(.8,1,.6,'#e8e4dc'),-4.5+k*1.8,15.3,-3+sd*5.1,0);add(upper,tbox(.6,1,.8,'#e8e4dc'),sd*5.1,15.3,-7.5+k*1.8,0)}
-    {const r=new THREE.ConeGeometry(6.6,5.5,4);r.rotateY(Math.PI/4);r.translate(0,17.6,-3);roof.push(col(r,'#ffffff'))}
-    {const k1=W(-5,-3),k2=W(5,-3);segs.push([k1.x,k1.z,k2.x,k2.z,5.2])}
-    {const pole=new THREE.CylinderGeometry(.1,.12,6,6);pole.translate(0,22.6,-3);upper.push(col(pole,'#4b3624'))}
-    for(const sd of[-1,1])for(const h of[6,10]){const g=new THREE.BoxGeometry(.9,1.6,.2);g.translate(sd*2.4,h,2.05);upper.push(col(g,'#1d1712'))}
-    const flag=new THREE.BoxGeometry(.05,1.8,3);flag.translate(0,24.6,-1.5);roof.push(col(flag,'#ffffff'));
+    const tops=[];const TH=v===0?12:v===1?12.6:13.5;
+    for(const[x,z]of[[-L,-L],[L,-L],[-L,L],[L,L]]){
+      if(v===0){add(lower,tcyl(3,3.4,4,14,ST),x,2,z);add(upper,tcyl(3,3,7,14,ST),x,7.5,z);add(upper,tcyl(3.4,3,1,14,CAP),x,11.5,z);for(let k=0;k<10;k+=2){const a=k/10*6.283;add(upper,tbox(.7,.9,.5,CAP),x+Math.cos(a)*3.1,12.4,z+Math.sin(a)*3.1,-a)}
+        const r=new THREE.ConeGeometry(3.7,4.6,14);r.translate(x,14.3+.6,z);roof.push(col(r,'#ffffff'))}
+      else if(v===1){add(lower,tbox(6.2,4,6.2,ST),x,2,z);add(upper,tbox(6,8,6,ST),x,8,z);add(upper,tbox(6.6,.6,6.6,CAP),x,12.2,z);for(const[ox,oz]of[[-2.6,-2.6],[0,-2.6],[2.6,-2.6],[-2.6,0],[2.6,0],[-2.6,2.6],[0,2.6],[2.6,2.6]])add(upper,tbox(.8,1,.8,CAP),x+ox,13,z+oz,0)}
+      else{add(lower,tcyl(3.4,3.8,4.5,8,ST),x,2.25,z);add(upper,tcyl(3.4,3.4,8.2,8,ST),x,8.6,z);add(upper,tcyl(3.8,3.4,1,8,CAP),x,13.1,z);for(let k=0;k<8;k+=2){const a=k/8*6.283+.39;add(upper,tbox(.9,1,.5,CAP),x+Math.cos(a)*3.5,14,z+Math.sin(a)*3.5,-a)}
+        const r=new THREE.ConeGeometry(4,7,8);r.rotateY(.39);r.translate(x,17.1,z);roof.push(col(r,'#ffffff'))}
+      tops.push({x,y:TH,z});const p=W(x,z);segs.push([p.x,p.z,p.x,p.z,3.6])}
+    for(const sd of[-1,1]){add(lower,tbox(3.4,4,3.4,ST),sd*4.9,2,L,0);add(upper,tbox(3.4,H-.5,3.4,ST),sd*4.9,4+(H-.5)/2,L,0);for(const[ox,oz]of[[-1.2,-1.2],[1.2,-1.2],[-1.2,1.2],[1.2,1.2]])add(upper,tbox(.7,.9,.7,CAP),sd*4.9+ox,H+4.2,L+oz,0)}
+    add(upper,tbox(6.4,2.4,2.2,ST),0,H+.2,L,0);for(let k=-2;k<=2;k++){const g=new THREE.BoxGeometry(.12,1.4,.12);g.translate(k*1.1,H-1.5,L+.6);upper.push(col(g,'#2a2420'))}{const g=new THREE.BoxGeometry(5.2,.14,.12);g.translate(0,H-2,L+.6);upper.push(col(g,'#2a2420'))}
+    // the keep
+    if(v===1){add(lower,tcyl(5.2,5.6,5,16,ST),0,2.5,-3);add(upper,tcyl(5.2,5.2,11,16,ST),0,10.5,-3);add(upper,tcyl(5.7,5.2,.8,16,CAP),0,16.4,-3);const r=new THREE.ConeGeometry(6,7,16);r.translate(0,20.3,-3);roof.push(col(r,'#ffffff'));
+      for(const h of[7,11])for(const a of[0,1.57,3.14,4.71]){const g=new THREE.BoxGeometry(.8,1.5,.3);g.translate(Math.sin(a)*5.15,h,-3+Math.cos(a)*5.15);g.rotateY(0);upper.push(col(g,'#1d1712'))}}
+    else{const kh=v===2?11:9;add(lower,tbox(10,5,10,ST),0,2.5,-3,0);add(upper,tbox(10,kh,10,ST),0,5+kh/2,-3,0);add(upper,tbox(10.8,.8,10.8,CAP),0,5+kh+.4,-3,0);
+      for(let k=0;k<6;k++)for(const sd of[-1,1]){add(upper,tbox(.8,1,.6,CAP),-4.5+k*1.8,5+kh+1.3,-3+sd*5.1,0);add(upper,tbox(.6,1,.8,CAP),sd*5.1,5+kh+1.3,-7.5+k*1.8,0)}
+      if(v===0){const r=new THREE.ConeGeometry(6.6,5.5,4);r.rotateY(Math.PI/4);r.translate(0,17.6,-3);roof.push(col(r,'#ffffff'))}
+      else for(const sd of[-1,1]){add(upper,tcyl(1.6,1.6,5,10,ST),sd*4.2,5+kh+2.5,-6.2);const r=new THREE.ConeGeometry(2,3.4,10);r.translate(sd*4.2,5+kh+6.7,-6.2);roof.push(col(r,'#ffffff'))}
+      for(const sd of[-1,1])for(const h of[6,10]){const g=new THREE.BoxGeometry(.9,1.6,.2);g.translate(sd*2.4,h,2.05);upper.push(col(g,'#1d1712'))}}
+    {const k1=W(-5.4,-3),k2=W(5.4,-3);segs.push([k1.x,k1.z,k2.x,k2.z,5.4])}
+    {const fh=v===1?23.5:v===2?22:20.5;const pole=new THREE.CylinderGeometry(.1,.12,6,6);pole.translate(0,fh,-3);upper.push(col(pole,'#4b3624'));const flag=new THREE.BoxGeometry(.05,1.8,3);flag.translate(0,fh+2,-1.5);roof.push(col(flag,'#ffffff'))}
+    // a well and a hay stack in the yard, a stable roof along the right wall for the horses
+    {const wl=tcyl(1.1,1.2,1,12,ST);wl.translate(-9,.5,-10);lower.push(wl);const hb=new THREE.CylinderGeometry(1.2,1.4,1.6,10);hb.translate(-11.5,.8,1.5);lower.push(col(hb,'#c9a84a'))}
+    {const rf=new THREE.BoxGeometry(4,.2,16);rf.rotateZ(.25);rf.translate(L-2.6,4.2,-2);upper.push(col(rf,'#7a5634'));for(const z of[-9.5,-2,5.5]){const pst=new THREE.CylinderGeometry(.12,.12,3.6,5);pst.translate(L-4.4,1.8,z);lower.push(col(pst,'#5a3f22'))}}
     const rub=[];let rs=C.k*31+7;const R=()=>(rs=(rs*16807)%2147483647)/2147483647;for(let k=0;k<26;k++){const a=R()*6.283,r=R()*L,g=new THREE.DodecahedronGeometry(.8+R()*1.6,0);g.translate(Math.cos(a)*r,.4+R()*.6,Math.sin(a)*r);rub.push(col(g,'#8a847a'))}
     const mk=(arr,mat)=>{const g=merge(arr,true);const m=new THREE.Mesh(g,mat);m.position.set(C.x,C.y-.3,C.z);m.rotation.y=C.a;m.castShadow=m.receiveShadow=true;S.scene.add(m);return m};
     const lo=mk(lower,stoneM),up=mk(upper,stoneM),rm=new THREE.MeshLambertMaterial({vertexColors:true,color:'#9a9a9a'}),ro=mk(roof,rm),ru=mk(rub,new THREE.MeshLambertMaterial({vertexColors:true}));ru.visible=false;
-    const gate=W(0,L+5),yard=W(0,6);
-    list.push({...C,lo,up,ro,ru,rm,segs,gate,yard,W})}
-  S.castles=list;return list}
+    const gate=W(0,L+5),yard=W(0,6),ch=W(-8.5,8),stable=[0,1,2,3,4].map(i=>{const w=W(L-4.2,-9+i*3.6);return{x:w.x,z:w.z,a:C.a-Math.PI/2}});
+    list.push({...C,lo,up,ro,ru,rm,segs,gate,yard,W,v,tops:tops.map(t=>{const w=W(t.x,t.z);return{x:w.x,y:C.y-.3+t.y,z:w.z}}),chest:{x:ch.x,z:ch.z,a:C.a},stable})}
+  // the treasure chests, one in each castle yard, and the gold heaped in them
+  const body=merge([col(new THREE.BoxGeometry(1.3,.75,.85).translate(0,.375,0),'#7a4f2a'),col(new THREE.BoxGeometry(1.36,.1,.9).translate(0,.2,0),'#c9a640'),col(new THREE.BoxGeometry(1.36,.1,.9).translate(0,.6,0),'#c9a640')]);
+  const lid=merge([col(new THREE.CylinderGeometry(.43,.43,1.3,8,1,false,0,Math.PI).rotateZ(Math.PI/2).rotateX(Math.PI/2),'#86592f'),col(new THREE.BoxGeometry(.14,.2,.2).translate(0,.1,.42),'#d9b24a')]);
+  const gold=merge([...[0,1,2,3,4,5,6].map(k=>col(new THREE.CylinderGeometry(.14,.14,.05,10).translate(Math.cos(k*2.4)*.3,.78+(k%3)*.05,Math.sin(k*2.4)*.18),'#f2c33a')),col(new THREE.SphereGeometry(.45,10,6,0,6.283,0,1.2).scale(1.2,.45,.75).translate(0,.72,0),'#e6b42e')]);
+  const cm=new THREE.MeshLambertMaterial({vertexColors:true}),gm=new THREE.MeshStandardMaterial({vertexColors:true,metalness:.6,roughness:.3,emissive:'#5a3a00',emissiveIntensity:.35});
+  const CB=new THREE.InstancedMesh(body,cm,list.length),CL=new THREE.InstancedMesh(lid,cm,list.length),CG=new THREE.InstancedMesh(gold,gm,list.length);for(const m of[CB,CL,CG]){m.castShadow=true;m.frustumCulled=false;S.scene.add(m)}
+  S.chestM={CB,CL,CG};S.castles=list;return list}
+export function drawChests(gold){const {CB,CL,CG}=S.chestM;let g=0;S.castles.forEach((c,i)=>{const y=groundAt(c.chest.x,c.chest.z);q.setFromAxisAngle(UP,c.chest.a);m4.compose(vp.set(c.chest.x,y,c.chest.z),q,vs.set(1,1,1));CB.setMatrixAt(i,m4);
+  const open=gold[i]>0;const lm=new THREE.Matrix4().makeTranslation(0,.75,-.43).multiply(new THREE.Matrix4().makeRotationX(open?-1.9:0)).multiply(new THREE.Matrix4().makeTranslation(0,0,.43));     /* the lid swings back on its hinge */CL.setMatrixAt(i,m4.clone().multiply(lm));if(open)CG.setMatrixAt(g++,m4)});
+  CG.count=g;for(const m of[CB,CL,CG])m.instanceMatrix.needsUpdate=true}
 export function castleLook(k,colr,ruined){const c=S.castles[k];c.rm.color.copy(colr);c.up.visible=!ruined;c.ro.visible=!ruined;c.ru.visible=!!ruined;c.lo.scale.y=ruined?.55:1}
 
 // ---------- the closing ring: four tall shimmering walls that close in from the edges of the map ----------

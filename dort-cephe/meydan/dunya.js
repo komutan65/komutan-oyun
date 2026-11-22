@@ -51,6 +51,8 @@ export function groundCol(x,z,h,sl){
   const dry=smooth(-.05,-.42,w),lush=smooth(.05,.4,w);
   r=lerp(.27,.55,dry)-lush*.06;g=lerp(.52,.5,dry)-lush*.06;b=lerp(.17,.24,dry)-lush*.03;
   r*=.88+n*.2;g*=.88+n*.2;b*=.9+n*.15;
+  // under forests the ground is darker and greener: from afar a wood reads as a wood
+  const fo=smooth(-.08,.32,w)*(1-smooth(95,130,h));r*=1-fo*.3;g*=1-fo*.18;b*=1-fo*.25;
   // flowers of light in the meadow, darker patches under forest
   const fl=lush*.12*(n2>.82?1:0);r+=fl*.6;g+=fl*.5;
   // sand at lake shores

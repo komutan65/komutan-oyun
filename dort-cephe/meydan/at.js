@@ -60,10 +60,6 @@ function horseGeo(ph,run){
     limb(hp,kn,.17,.15,'#6d727a',8);limb(kn,an,.14,.12,'#5b6068',8);blob(kn.x,kn.y,kn.z+.04,.15,.15,.15,'#8a8f97');
     const bt=new THREE.BoxGeometry(.2,.2,.38);bt.translate(an.x,an.y-.06,an.z+.08);put(bt,'#3b2f28',1);
     const st=new THREE.TorusGeometry(.12,.025,4,8);st.translate(an.x,an.y-.16,an.z+.06);put(st,'#9a9aa2',1)}keep=0;
-  // the rider's lance, couched under his right arm and carried forward past the horse's head, with a small pennon
-  {keep=1;const a0=V(-.52,Y(2.75),-.55),a1=V(-.52,Y(2.45),2.75);limb(a0,a1,.05,.04,'#7a5a3a',8);const tp=new THREE.ConeGeometry(.07,.42,8);tp.rotateX(Math.PI/2-.09);tp.translate(a1.x,a1.y-.02,a1.z+.2);put(tp,'#c8ccd2');
-    const gd=new THREE.ConeGeometry(.16,.4,10,1,true);gd.rotateX(Math.PI/2-.09);gd.translate(-.5,Y(2.86),-.1);put(gd,'#9aa0a8');
-    const pn=new THREE.BufferGeometry();const px=a1.x,py=a1.y+.03,pz=a1.z-.35,fl=run?Math.sin(T*4)*.06:0;pn.setAttribute('position',new THREE.Float32BufferAttribute([px,py,pz, px,py+.32,pz-.08, px+fl,py+.16,pz-.6],3));put(pn,'#e8e2d0');keep=0}
   // war harness after the old barding: a steel chanfron down the face, a peytral plate round the breast, a  all edged in brass
   {keep=1;const ST='#b9c0c8',BR='#c9a443',hd=V(0,-.62,.62).normalize(),up=V(0,.62,.62).normalize();
     {const c=new THREE.BoxGeometry(.27,.04,.66);c.rotateX(Math.PI/4);const p0=poll.clone().addScaledVector(hd,.42).addScaledVector(up,.15);c.translate(p0.x,p0.y,p0.z);put(c,ST);
@@ -84,7 +80,12 @@ function horseGeo(ph,run){
   for(const g of parts){P3.set(g.attributes.position.array,o*3);N3.set(g.attributes.normal.array,o*3);const ca=g.attributes.color.array;for(let i=0;i<g.attributes.position.count;i++){C3[(o+i)*3]=ca[i*4];C3[(o+i)*3+1]=ca[i*4+1];C3[(o+i)*3+2]=ca[i*4+2];K1[o+i]=ca[i*4+3]}o+=g.attributes.position.count;g.dispose()}
   let mn=1e9;for(let i=1;i<P3.length;i+=3)mn=Math.min(mn,P3[i]);if(!run)for(let i=1;i<P3.length;i+=3)P3[i]-=mn;     // standing: hooves on the ground
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(P3,3));g.setAttribute('normal',new THREE.BufferAttribute(N3,3));g.setAttribute('color',new THREE.BufferAttribute(C3,3));g.setAttribute('aKeep',new THREE.BufferAttribute(K1,1));g.computeBoundingSphere();return g}
-function horseClips(){const mat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.6,metalness:0,side:THREE.DoubleSide});mat.onBeforeCompile=sh=>{sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nattribute float aKeep;').replace('#include <color_vertex>','#include <color_vertex>\nvColor.rgb=mix(vColor.rgb,color.rgb,aKeep);');sh.fragmentShader=sh.fragmentShader.replace('#include <opaque_fragment>',RIM+'#include <opaque_fragment>')};
-  const mk=g=>{const m=new THREE.InstancedMesh(g,mat,CHR_CAP);m.castShadow=true;m.frustumCulled=false;m.count=0;m.visible=false;m.setColorAt(0,new THREE.Color('#fff'));m.userData.n=0;scene.add(m);return m};
-  const walk=[];for(let f=0;f<12;f++)walk.push(mk(horseGeo(f/12,true)));const idle=[];for(let f=0;f<8;f++)idle.push(mk(horseGeo(f/8,false)));return{walk,idle}}
+function horseClips(){const mat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.6,metalness:0,side:THREE.DoubleSide});
+  // every frame is blended smoothly into the next on the graphics card: no stepping from pose to pose
+  const vx=sh=>sh.vertexShader.replace('#include <common>','#include <common>\nattribute float aKeep;attribute vec3 p2;attribute vec3 n2;attribute float aBl;').replace('#include <beginnormal_vertex>','vec3 objectNormal=normalize(mix(normal,n2,aBl));\n#ifdef USE_TANGENT\nvec3 objectTangent=vec3(tangent.xyz);\n#endif').replace('#include <begin_vertex>','vec3 transformed=mix(position,p2,aBl);');
+  mat.onBeforeCompile=sh=>{sh.vertexShader=vx(sh).replace('#include <color_vertex>','#include <color_vertex>\nvColor.rgb=mix(vColor.rgb,color.rgb,aKeep);');sh.fragmentShader=sh.fragmentShader.replace('#include <opaque_fragment>',RIM+'#include <opaque_fragment>')};
+  const dm=new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking});dm.onBeforeCompile=sh=>{sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nattribute vec3 p2;attribute float aBl;').replace('#include <begin_vertex>','vec3 transformed=mix(position,p2,aBl);')};
+  const mk=g=>{const m=new THREE.InstancedMesh(g,mat,CHR_CAP);m.customDepthMaterial=dm;g.setAttribute('aBl',new THREE.InstancedBufferAttribute(new Float32Array(CHR_CAP),1));m.castShadow=true;m.frustumCulled=false;m.count=0;m.visible=false;m.setColorAt(0,new THREE.Color('#fff'));m.userData.n=0;scene.add(m);return m};
+  const link=ms=>ms.forEach((m,i)=>{const nx=ms[(i+1)%ms.length].geometry;m.geometry.setAttribute('p2',nx.attributes.position);m.geometry.setAttribute('n2',nx.attributes.normal)});
+  const walk=[];for(let f=0;f<14;f++)walk.push(mk(horseGeo(f/14,true)));const idle=[];for(let f=0;f<8;f++)idle.push(mk(horseGeo(f/8,false)));link(walk);link(idle);return{walk,idle}}
 return horseClips()}
