@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {SES} from './ses.js?v=20261122a';
+import {SES} from './ses.js?v=20261123a';
 /* Dört Cephe. Each client simulates its own square (and any computer rivals);
    units sent to a player are simulated by that player. Others see 2 snapshots a second. */
 const A=window.ARENA,EN=window.LANG==='en',TL=(t,e)=>EN?e:t;
@@ -10,7 +10,7 @@ const num=(v,d=0)=>typeof v==='number'&&isFinite(v)?v:d;
 // ---------- rules ----------
 let BUILD_T={denizalti:16,gemi:20},TBUILD={ok:7,top:10,hava:9,roket:14,duvar:2.5},WMAX=12,RUNWAY_COST=200,MS_COST=100,MS_T=10,MS_HP=120,RUNWAY_T=12,YARD_COST=100,YARD_T=15,MAX_SHIPS=4,PLANE_T=12,SHIP_SEE=80,SHIP_STAND=95,SUB_TIME=16,WALL=3,START_MONEY=200*2.5,CASTLE_HP=500,TRICKLE=0.5,MAX_TOWERS=40;
 // a base trains one soldier at a time and fields a limited army, so nobody can flood the map
-let TRAIN={piyade:2,atli:3,koc:7,balon:6},POP={piyade:1,atli:1,koc:3,balon:2},POP_CAP=40,FUZE_CD=6,DBR_FIX=100,VER='43';
+let TRAIN={piyade:2,atli:3,koc:7,balon:6},POP={piyade:1,atli:1,koc:3,balon:2},POP_CAP=40,FUZE_CD=6,DBR_FIX=100,VER='44';
 // the lesson: an empty 1v1 map where nothing costs anything and nothing has to be waited for
 const TUT=!!(A&&A.tutorial);
 if(TUT){BUILD_T={denizalti:.5,gemi:.5};for(const k in TBUILD)TBUILD[k]=.2;RUNWAY_T=YARD_T=PLANE_T=.5;FUZE_CD=.5;TRAIN={piyade:.2,atli:.2,koc:.2,balon:.2}}
@@ -495,10 +495,12 @@ function subSeen(x,z,from){if(allied(from,ME.seat))return true;const t=now();if(
   return seenSh.some(c=>Math.hypot(c.x-x,c.z-z)<34)||(!ME.dead&&(c=>Math.hypot(c.x-x,c.z-z)<72)(castlePos(ME.seat)))}
 function landNear(x,z,r){let best=null,bd=1e9;for(let a=0;a<6.28;a+=.2)for(let k=3;k<=r;k+=2){const X=x+Math.cos(a)*k,Z=z+Math.sin(a)*k;if(shoreOf(X,Z)>WL+2){if(k<bd){bd=k;best={x:X,z:Z}}break}}return best}
 // where a submarine's line first runs from the sea onto someone else's land: the divers go ashore exactly there
+// a base's own island: not the neutral middle strip, the plaza or the far shore
+const homeLand=(x,z)=>outerD(x,z)<-4&&(DUEL?Math.abs(x)>DMID+8:Math.hypot(x,z)>34);
 function coastCross(from,pts){let wet=null;
   for(let i=0;i<pts.length-1;i++){const a=pts[i],b=pts[i+1],l=Math.hypot(b.x-a.x,b.z-a.z),n=Math.max(1,Math.ceil(l/1.5));
     for(let k=0;k<=n;k++){const x=a.x+(b.x-a.x)*k/n,z=a.z+(b.z-a.z)*k/n,land=shoreOf(x,z)>WL+.6;
-      if(!land){wet={x,z,i};continue}if(wet&&!allied(seatAt(x,z),from))return{W:wet,L:{x,z}}}}return null}
+      if(!land){wet={x,z,i};continue}if(wet&&!allied(seatAt(x,z),from)&&homeLand(x,z))return{W:wet,L:{x,z}}}}return null}
 function setRoute(u,D,pts){
   let cc=null;if(u.type==='denizalti'){cc=coastCross(u.from,[{x:u.x,z:u.z},...pts]);if(cc)pts=[...pts.slice(0,Math.max(0,cc.W.i)),{x:cc.W.x,z:cc.W.z}]}     // sail to the spot where the line meets the shore, not past it
   const U=UNITS[u.type],cur={x:u.x,z:u.z},e=pts[pts.length-1];let p;
@@ -521,7 +523,7 @@ function setRoute(u,D,pts){
   if(u.siege&&!naval(u.type)&&!tw){u.end=Math.max(0,u.path.len-(5.5+u.id%5));u.lane=((u.id*7)%5-2)*.85}
   if(u.type==='gemi'&&u.aim){u.end=u.path.len;for(let q=0;q<=u.path.len;q+=2){const r=pointOn(u.path,q);if(Math.hypot(r.x-u.aim.x,r.z-u.aim.z)<=SHIP_STAND){u.end=q;break}}}   // stop as soon as the guns reach
   if(u.type==='denizalti'){const q=u.path.pts[u.path.pts.length-1],l=cc?cc.L:landNear(q.x,q.z,shoreOf(e.x,e.z)>-9?46:SUB_LAND);     // land the divers only when the line ends at a shore, never out in open sea
-    u.land=l&&seatAt(l.x,l.z)===D.seat?l:null;u.hold=!(foe&&u.land)}
+    u.land=l&&seatAt(l.x,l.z)===D.seat&&homeLand(l.x,l.z)?l:null;u.hold=!(foe&&u.land)}
 }
 // a finished bomber waits at the head of its runway, a finished warship at its dock, until they are sent
 function parkPlane(D){const r=RWY[D.seat];if(!r)return;const k=D.units.filter(u=>u.type==='ucak'&&u.ph==='park').length,dx=(r.b.x-r.a.x)/r.len,dz=(r.b.z-r.a.z)/r.len,x=r.a.x+dx*(4+k*9),z=r.a.z+dz*(4+k*9);
@@ -866,7 +868,7 @@ function simDefender(D,dt){
       if(u.moving&&!u.hold&&!u.cmd&&!allied(u.from,D.seat)&&u.s>u.path.len*.5&&(u.lk=(u.lk||0)-dt)<=0){u.lk=.5;const l=landNear(u.x,u.z,30);if(l&&seatAt(l.x,l.z)===D.seat){u.land=l;u.end=u.s;u.moving=false}}     // stop well out at sea, like a warship
       if(!u.moving&&!u.hold&&allied(u.from,D.seat))u.hold=true;     // home waters: just wait there for orders
       if(!u.moving&&!u.hold&&!allied(u.from,D.seat)){       // lie offshore, dive, and let the divers swim up onto the island
-        const l=u.spot?landNear(u.x,u.z,58)||u.spot:u.land||landNear(u.x,u.z,58);if(!l||seatAt(l.x,l.z)!==D.seat&&!u.spot){u.hold=true;continue}
+        const l=u.land||landNear(u.x,u.z,58);if(!l||seatAt(l.x,l.z)!==D.seat||!homeLand(l.x,l.z)){u.hold=true;continue}
         u.dove=0;ripple(u.x,u.z,6);ripple(u.x,u.z,3.5);fxAt(D,u.x,u.z,'dalga');
         for(let i=0;i<10;i++){const a=i*.628+.3,x=u.x+Math.cos(a)*(1.2+(i%2)*1.6),z=u.z+Math.sin(a)*(1.2+(i%2)*1.6),id=uid++,lx=l.x+Math.cos(a)*3.5,lz=l.z+Math.sin(a)*3.5,sp=u.spot,sx=sp&&sp.x+Math.cos(a)*(1.5+(i%3)*1.2),sz=sp&&sp.z+Math.sin(a)*(1.5+(i%3)*1.2),path=polyPath(sp?[{x,z},...(nav({x:lx,z:lz},{x:sx,z:sz})||[{x:lx,z:lz},{x:sx,z:sz}])]:[{x,z},{x:lx,z:lz},gateApproach(D.seat,{x:lx,z:lz})]);
           D.units.push(sp?{id,type:'dalgic',from:u.from,path,s:0,hp:UNITS.dalgic.hp,x,z,bomb:0,cd:0,end:path.len,lane:0,lx:0,lz:0,vx:0,vz:0,emerge:1.6+i*.15,cmd:true,hold:!u.spT,ftgt:u.spT||null,aim:u.spT?{x:u.spT.x,z:u.spT.z}:null,siege:false}
@@ -1590,8 +1592,6 @@ function buildSites(){
     const r=RWY[s];if(!r)continue;
     S.rRes=drape(r.c,r.ux,r.uz,r.len,9,new THREE.MeshBasicMaterial({color:TEAM[s],transparent:true,opacity:.22,depthWrite:false}),.18);
     S.rDirt=drape(r.c,r.ux,r.uz,r.len,9,dirt,.12);S.rAsph=drape(r.c,r.ux,r.uz,r.len,9,asph,.16);S.rDirt.visible=S.rAsph.visible=false;
-    {const wm=new THREE.MeshBasicMaterial({color:'#e8e4d6',transparent:true,opacity:.85,depthWrite:false}),at=(a,b)=>({x:r.c.x+r.ux*a+r.uz*b,z:r.c.z+r.uz*a-r.ux*b});S.rMark=[];     // painted centre line and threshold bars on the finished tarmac
-      for(let a=-20;a<=20;a+=5)S.rMark.push(drape(at(a,0),r.ux,r.uz,2.6,.32,wm,.19));for(const e of[-1,1])for(let b=-3;b<=3;b+=1.2)S.rMark.push(drape(at(e*(r.len/2-2.2),b),r.ux,r.uz,2.2,.5,wm,.19));{const P3=[],ix=[];let o=0;for(const m of S.rMark){const q=m.geometry.attributes.position.array,id=m.geometry.index.array;for(const v of q)P3.push(v);for(const v of id)ix.push(v+o);o+=q.length/3;scene.remove(m);m.geometry.dispose()}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P3,3));g.setIndex(ix);const mm=new THREE.Mesh(g,wm);mm.renderOrder=1;mm.visible=false;scene.add(mm);S.rMark=[mm]}}     // one mesh, one draw call
     // cracks that open up in the tarmac as it is bombed, and close again as it is mended
     {let sd=77+s*13;const R2=()=>(sd=(sd*16807)%2147483647)/2147483647;S.cr=[...Array(12)].map((_,i)=>{const a=(((i*7)%12)/11-.5)*r.len*.86,b=(R2()-.5)*2.4,an=R2()*6.28,c={x:r.c.x+r.ux*a+r.uz*b,z:r.c.z+r.uz*a-r.ux*b},m=drape(c,Math.cos(an),Math.sin(an),5+R2()*1.6,5+R2()*1.6,crackMat(i%3),.2+i*.002);m.visible=false;m.renderOrder=2;return m})}
     S.rw=[];
@@ -1616,7 +1616,7 @@ function moveRally(s,x,z,remote){const R=RALLY[s];if(!R)return;R.x=Math.round(x)
 function updateSites(dt){
   const swing=(ws,on)=>{for(const w of ws){w.g.visible=on;if(on){w.arm.rotation.x=-1.3+Math.sin(now()*.011+w.ph)*1.05;if(Math.sin(now()*.011+w.ph)>.97&&Math.random()<.3){const p=new THREE.Vector3();w.arm.getWorldPosition(p);sparks(p.x,p.z)}}}};
   for(let s=0;s<4;s++){const S=SITES[s],D=P[s];if(!S)continue;
-    const st=D.dead?0:(D.rwState||0);if(S.rRes){S.rRes.visible=st===0&&!D.dead;S.rDirt.visible=st===1;S.rAsph.visible=st===2;if(S.rMark&&S.rMark[0].visible!==(st===2))S.rMark.forEach(m=>m.visible=st===2);const nc=st===2?Math.round((1-rwHpOf(D)/RW_HP)*12):0;S.cr.forEach((m,i)=>m.visible=i<nc)}
+    const st=D.dead?0:(D.rwState||0);if(S.rRes){S.rRes.visible=st===0&&!D.dead;S.rDirt.visible=st===1;S.rAsph.visible=st===2;const nc=st===2?Math.round((1-rwHpOf(D)/RW_HP)*12):0;S.cr.forEach((m,i)=>m.visible=i<nc)}
     const y=local(D)?(D.yard?{type:D.yard.type,f:1-D.yard.t/D.yard.T}:null):D.yardV;
     if(D.launchT>0){D.launchT-=dt;const k=1-D.launchT/1.6;S.hull.visible=true;S.hull.scale.y=1;S.hull.position.z=S.hz+k*16;S.hull.position.y=.4-k*1.6;if(Math.random()<dt*8)splash(S.hull.getWorldPosition(tv).x,tv.z,2);if(D.launchT<=0)S.hull.visible=false}
     else if(y){S.hull.visible=true;S.hull.position.set(-7,.4,S.hz);S.hull.scale.set(y.type==='gemi'?1:.75,.15+.85*y.f,y.type==='gemi'?1:.8)}
@@ -2458,7 +2458,7 @@ function spritePool(tex,cap,additive){
       #include <colorspace_fragment>
       }`});
   const m=new THREE.Mesh(geo,mat);m.frustumCulled=false;m.renderOrder=additive?4:3;scene.add(m);
-  return{list:[],cap,geo,P3,C4,S2};
+  return{list:[],cap,cap0:cap,geo,P3,C4,S2};
 }
 const SMOKE=spritePool(smokeTex(),small?260:450,false),FIRE=spritePool(fireTex(),small?120:240,true);
 function puff(x,y,z,size,life,grey,vy=2.6,spread=1){if(SMOKE.list.length>=SMOKE.cap)SMOKE.list.shift();
@@ -3207,7 +3207,7 @@ function drawOverlay(){
 
 // ---------- main ----------
 const now=()=>performance.now();
-let ambAcc=0,lastSim=now(),snapAcc=0,hudAcc=0,lastF=now(),fps=60,slow=0,fast=0,ups=0;
+let ambAcc=0,lastSim=now(),snapAcc=0,hudAcc=0,lastF=now(),fps=60,slow=0,fast=0,ups=0,load=0,lslow=0,lfast=0;
 // ---------- the lesson ----------
 // a short guided game: each step is a small job; the button to press glows, the spot to tap is ringed, and the step turns green when done
 const TS=[];let tutI=0,tutDone=0,tutFlags={},tutSpot=null,tutHint='',tutKey='',tutCamT=0,tutMini=false;
@@ -3343,6 +3343,7 @@ setInterval(()=>{           // runs even when the tab is in the background
 let longF=0;
 // never more than about 60 pictures a second, even on 90 and 120 Hz phones: the eye can't tell, the battery can
 let lastDraw=0;const sunAt=new THREE.Vector3();
+function setLoad(){SMOKE.cap=Math.round(SMOKE.cap0*(load?.5:1));FIRE.cap=Math.round(FIRE.cap0*(load?.6:1));while(SMOKE.list.length>SMOKE.cap)SMOKE.list.shift();while(FIRE.list.length>FIRE.cap)FIRE.list.shift();sun.castShadow=GFX[gfxMode].sh&&load<2;sun.shadow.needsUpdate=true}
 function frame(t){requestAnimationFrame(frame);if(t-lastDraw<frameCap)return;lastDraw=t;try{frameBody(t)}catch(e){oops(e)}}
 function frameBody(t){
   const raw=t-lastF;if(raw>2500&&!document.hidden&&lastF>0&&now()-hidAt>raw+500&&longF++<3)report('takilma','uzun kare '+Math.round(raw)+' ms');
@@ -3350,6 +3351,9 @@ function frameBody(t){
   slow=fps<24?slow+dt:0;fast=fps>55?fast+dt:0;
   if(slow>5&&DPR>1.1){DPR=Math.max(1,DPR-.2);renderer.setPixelRatio(DPR);size();slow=0;fast=0}
   else if(fast>15&&DPR<DPR0&&ups<2){ups++;DPR=Math.min(DPR0,DPR+.2);renderer.setPixelRatio(DPR);size();fast=0}
+  // a long battle fills the sky with smoke and the field with men: when the picture still drags at the lowest sharpness, thin the smoke, then drop the shadows
+  lslow=fps<34&&DPR<=1.1?lslow+dt:0;lfast=fps>56?lfast+dt:0;
+  if(lslow>6&&load<2){load++;lslow=0;lfast=0;setLoad()}else if(lfast>25&&load>0){load--;lfast=0;setLoad()}
   const p=view.d*dt*1.1;
   if(keys.has('a')||keys.has('arrowleft'))panBy(-p,0);if(keys.has('d')||keys.has('arrowright'))panBy(p,0);
   if(keys.has('w')||keys.has('arrowup'))panBy(0,-p);if(keys.has('s')||keys.has('arrowdown'))panBy(0,p);if(keys.has('q')){keys.delete('q');turnMap(-1)}if(keys.has('e')){keys.delete('e');turnMap(1)}

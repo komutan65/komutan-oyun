@@ -9,7 +9,7 @@ const sb=(window.ARENA_TEST&&window.ARENA_TEST.client)||window.supabase.createCl
 let AUTO=null;try{AUTO=JSON.parse(sessionStorage.getItem('cephe_auto')||'null');sessionStorage.removeItem('cephe_auto')}catch(e){}
 const id=AUTO&&typeof AUTO.id==='string'?AUTO.id:Math.random().toString(36).slice(2,12);
 const Q=new URLSearchParams(location.search),invite=Q.get('oda');
-let duel=Q.get('m')==='2';
+let duel=Q.get('m')==='2',big=Q.get('m')==='big';try{if(!Q.get('m')&&localStorage.getItem('cephe_mod')==='big'){big=true;localStorage.removeItem('cephe_mod')}}catch(e){}
 let ch=null,joinedAt=0,timer=null,started=false,code=null,host=false,lookT=0;
 try{$('lName').value=localStorage.getItem('cephe_name')||''}catch(e){}
 if(!$('lName').value)$('lName').value='Oyuncu'+(100+Math.random()*900|0);
@@ -23,7 +23,7 @@ function applyLang(){
   for(const el of document.querySelectorAll('[data-en]')){if(el.dataset.tr==null)el.dataset.tr=el.textContent;el.textContent=LANG==='en'?el.dataset.en:el.dataset.tr}
   for(const b of document.querySelectorAll('#lLang button'))b.classList.toggle('on',b.dataset.l===LANG);
   $('eye').title=$('eye').ariaLabel=L('Ekranı gizle','Hide the HUD');
-  if(typeof setMode==='function'&&$('m4'))setMode(duel);
+  if(typeof setMode==='function'&&$('m4'))setMode(duel,big);
   if(window.__onl)window.__onl();
 }
 
@@ -38,17 +38,17 @@ online();
 function players(){
   if(!ch)return[];
   const out=[];const st=ch.presenceState();
-  for(const k in st){const p=st[k][0];if(p&&typeof p.t==='number')out.push({id:k,name:String(p.name||'Oyuncu').slice(0,12),t:p.t,host:!!p.host,duel:!!p.duel})}
+  for(const k in st){const p=st[k][0];if(p&&typeof p.t==='number')out.push({id:k,name:String(p.name||'Oyuncu').slice(0,12),t:p.t,host:!!p.host,duel:!!p.duel,big:!!p.big})}
   return out.sort((a,b)=>(b.host-a.host)||a.t-b.t||(a.id<b.id?-1:1));
 }
 function draw(){
   const list=players(),box=$('lList');box.textContent='';
   // in a code room the host's mode rules: a friend who typed the code learns it from the host
-  const h=code&&list.find(p=>p.host);if(h&&!host&&duel!==h.duel)setMode(h.duel)
+  const h=code&&list.find(p=>p.host);if(h&&!host&&(duel!==h.duel||big!==h.big))setMode(h.duel,h.big)
   if(code&&!host&&!h&&Date.now()-lookT>8000){cancel();err(L('Bu kodla açık bir oda bulunamadı. Kodu kontrol et.','No open room with that code. Check the code.'));return}
   list.slice(0,MAXP).forEach(p=>{const d=document.createElement('div');d.textContent=p.name+(p.host?L(' (oda kurucu)',' (host)'):'')+(p.id===id?L(' (sen)',' (you)'):'');box.append(d)});
   const n=Math.min(list.length,MAXP),mine=list.findIndex(p=>p.id===id);
-  $('lStatus').textContent=code?(mine>=MAXP?L('Oda dolu, kurucu başka oda açabilir.','The room is full.'):`${duel?L('1v1 odası','1v1 room'):L('4 kişilik oda','4-player room')} · ${L('Oyuncular','Players')}: ${n}/${MAXP} · ${host?L('Herkes gelince Maçı başlat’a bas.','Press Start when everyone is in.'):L('Oda kurucusunun başlatmasını bekle.','Wait for the host to start.')}`):`${L('Rakip aranıyor…','Looking for opponents…')} ${n}/${MAXP}`;
+  $('lStatus').textContent=code?(mine>=MAXP?L('Oda dolu, kurucu başka oda açabilir.','The room is full.'):`${big?L('Büyük harita odası','Big map room'):duel?L('1v1 odası','1v1 room'):L('4 kişilik oda','4-player room')} · ${L('Oyuncular','Players')}: ${n}/${MAXP} · ${host?L('Herkes gelince Maçı başlat’a bas.','Press Start when everyone is in.'):L('Oda kurucusunun başlatmasını bekle.','Wait for the host to start.')}`):`${L('Rakip aranıyor…','Looking for opponents…')} ${n}/${MAXP}`;
   $('lStart').hidden=!(code&&host&&list.length>=2);
 }
 function tryAuto(){
@@ -59,7 +59,7 @@ function tryAuto(){
 // in a duel the two players take opposite corners, so neither has a shorter road
 const seats=list=>{const l=list.map(p=>({id:p.id,name:p.name,bot:p.bot}));return duel?[l[0],l[1]]:l};
 function go(list){
-  const m={room:Math.random().toString(36).slice(2,12),players:seats(list),duel};
+  const m={room:Math.random().toString(36).slice(2,12),players:seats(list),duel,big,seed:(Math.random()*4294967295)>>>0,t0:Date.now()+3500};
   ch.send({type:'broadcast',event:'go',payload:m});enter(m);
 }
 async function enter(m){
@@ -69,9 +69,9 @@ async function enter(m){
   started=true;clearInterval(timer);
   try{if(ch){await ch.untrack();sb.removeChannel(ch)}}catch(e){}
   onlineAt(m.tutorial?'egitim':'oyun');
-  window.ARENA={seat,id,room:String(m.room),players:m.players,sb,duel:!!m.duel,tutorial:!!m.tutorial};
+  window.ARENA={seat,id,room:String(m.room),players:m.players,sb,duel:!!m.duel,tutorial:!!m.tutorial,big:!!m.big,seed:m.seed>>>0,t0:+m.t0||0};
   $('lStatus').textContent=L('Harita hazırlanıyor…','Preparing the map…');
-  try{await import('./oyun.js?v=20261122a');$('lobby').hidden=true}
+  try{if(m.big){$('lobby').hidden=true;await import('./meydan/oyun.js?v=20261123a')}else{await import('./oyun.js?v=20261123a');$('lobby').hidden=true}}
   catch(e){console.error(e);err(L('Oyun yüklenemedi. Sayfayı yenile.','The game failed to load. Refresh the page.'))}
 }
 function join(name){
@@ -82,7 +82,7 @@ function join(name){
   ch=sb.channel('cephe-'+name,{config:{broadcast:{self:false},presence:{key:id}}});
   ch.on('presence',{event:'sync'},draw).on('broadcast',{event:'go'},({payload})=>enter(payload||{}));
   ch.subscribe(s=>{
-    if(s==='SUBSCRIBED')ch.track({name:nick(),t:joinedAt,host,duel});
+    if(s==='SUBSCRIBED')ch.track({name:nick(),t:joinedAt,host,duel,big});
     else if(s==='CHANNEL_ERROR'||s==='TIMED_OUT')err(L('Sunucuya bağlanılamadı. İnternetini kontrol edip yeniden dene.',"Couldn't reach the server. Check your connection and try again."));
   });
   timer=setInterval(()=>{draw();tryAuto()},1000);
@@ -100,10 +100,11 @@ function openRoom(c,asHost){
   $('lShare').hidden=!host;$('lCodeV').textContent=code;
   join('kod-'+code.toLowerCase());
 }
-$('lPlay').onclick=()=>join(duel?'teke-genel':'genel');
+$('lPlay').onclick=()=>join(big?'meydan-genel':duel?'teke-genel':'genel');
 $('lBots').onclick=()=>{
   try{localStorage.setItem('cephe_name',nick())}catch(e){}
   $('lHome').hidden=true;$('lMode').hidden=true;$('lQueue').hidden=false;$('lCancel').hidden=true;
+  if(big){enter({room:'mdnbot'+Math.random().toString(36).slice(2,10),big:true,seed:(Math.random()*4294967295)>>>0,t0:Date.now()+2500,players:[{id,name:nick()}]});return}
   enter(duel?{room:'bot'+Math.random().toString(36).slice(2,10),duel:true,players:[{id,name:nick()},{id:'b1',name:L('Yapay Zeka','Computer'),bot:1}]}
     :{room:'bot'+Math.random().toString(36).slice(2,10),players:[{id,name:nick()},{id:'b1',name:L('Yapay Zeka','Computer')+' 1',bot:1},{id:'b2',name:L('Yapay Zeka','Computer')+' 2',bot:2},{id:'b3',name:L('Yapay Zeka','Computer')+' 3',bot:3}]});
 };
@@ -124,11 +125,12 @@ $('lCopy').onclick=async()=>{
   try{await navigator.clipboard.writeText(code);$('lCopy').textContent=L('Kopyalandı','Copied')}catch(e){}
 };
 // mode switch: four corners, or one against one
-function setMode(d){
-  duel=d;MAXP=d?2:4;$('m4').classList.toggle('on',!d);$('m2').classList.toggle('on',d);
+function setMode(d,b){
+  duel=!!d&&!b;big=!!b;MAXP=big?20:duel?2:4;$('m4').classList.toggle('on',!duel&&!big);$('m2').classList.toggle('on',duel);if($('m20'))$('m20').classList.toggle('on',big);
+  if(big){$('lBots').textContent=L('Yapay zekayla oyna (20 kişi)','Play with the computer (20)');$('lInvite').textContent=L('Arkadaşlarınla oyna','Play with friends');$('lPlay').textContent=L('OYNA','PLAY');return}
   $('lBots').textContent=d?L('Yapay zekaya karşı 1v1','1v1 against the computer'):L('Yapay zekaya karşı oyna','Play against the computer');$('lInvite').textContent=d?L('Arkadaşınla 1v1','1v1 with a friend'):L('Arkadaşlarınla oyna','Play with friends');$('lPlay').textContent=d?L('1v1 OYNA','PLAY 1v1'):L('OYNA','PLAY');
 }
-$('m4').onclick=()=>setMode(false);$('m2').onclick=()=>setMode(true);
+$('m4').onclick=()=>setMode(false,false);$('m2').onclick=()=>setMode(true,false);if($('m20'))$('m20').onclick=()=>setMode(false,true);
 for(const b of document.querySelectorAll('#lLang button'))b.onclick=()=>{LANG=b.dataset.l;try{localStorage.setItem('cephe_dil',LANG)}catch(e){}applyLang()};
 applyLang();
 if(AUTO&&AUTO.m){$('lHome').hidden=true;$('lMode').hidden=true;$('lQueue').hidden=false;$('lCancel').hidden=true;enter(AUTO.m)}
