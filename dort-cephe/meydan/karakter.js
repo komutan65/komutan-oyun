@@ -2,8 +2,8 @@
    so twenty fighters cost only a handful of draw calls. Same format as the main game's model/*.bin. */
 import * as THREE from 'three';
 export const SINIF=['sovalye','okcu','madenci','oduncu'];
-const TEX={sovalye:'knight',okcu:'rogue',madenci:'barbarian',oduncu:'barbarian'};
-export const CHR={};const CAP=24;
+const TEX={sovalye:'knight',okcu:'rogue',madenci:'barbarian',oduncu:'barbarian',binici:'knight'};
+export const CHR={};const CAP=64;
 const RIM='{float rim=pow(1.-clamp(dot(normal,normalize(vViewPosition)),0.,1.),2.6);outgoingLight+=rim*.34*vec3(1.,.93,.8)*(.5+.5*diffuseColor.rgb);}\n';
 function chrMat(tex,V){const m=new THREE.MeshStandardMaterial({color:'#ffffff',roughness:.72,metalness:.05});
   const t=new THREE.TextureLoader().load('model/'+tex+'_texture.png?v='+V);t.colorSpace=THREE.SRGBColorSpace;t.flipY=false;t.magFilter=THREE.NearestFilter;t.minFilter=THREE.LinearMipmapLinearFilter;m.map=t;
@@ -12,7 +12,7 @@ function chrMat(tex,V){const m=new THREE.MeshStandardMaterial({color:'#ffffff',r
     sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying float vTeam;varying vec3 vTint;').replace('#include <color_fragment>','{vec3 tc=min(vTint,vec3(1.));float fl=max(0.,max(vTint.r,max(vTint.g,vTint.b))-1.);diffuseColor.rgb=mix(diffuseColor.rgb,mix(vec3(dot(diffuseColor.rgb,vec3(.3,.59,.11))),diffuseColor.rgb,.25)*tc*1.9,vTeam);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(1.,.95,.9),clamp(fl,0.,.8));}').replace('#include <opaque_fragment>',RIM+'#include <opaque_fragment>')};
   return m}
 export async function loadChr(scene,key,V){
-  const r=await fetch('model/m_'+key+'.bin?v='+V);if(!r.ok)throw new Error('model '+key);const buf=await r.arrayBuffer(),dv=new DataView(buf),jl=dv.getUint32(0,true),pad=a=>a+((4-a%4)%4);
+  const r=await fetch('model/'+(key==='binici'?'binici':'m_'+key)+'.bin?v='+V);if(!r.ok)throw new Error('model '+key);const buf=await r.arrayBuffer(),dv=new DataView(buf),jl=dv.getUint32(0,true),pad=a=>a+((4-a%4)%4);
   const h=JSON.parse(new TextDecoder().decode(new Uint8Array(buf,4,jl)));let o=4+pad(jl);const nv=h.nv;
   const IA=h.big?new Uint32Array(buf,o,h.ni):new Uint16Array(buf,o,h.ni);o+=pad(IA.byteLength);const UV=new Float32Array(buf,o,nv*2);o+=UV.byteLength;const TM=new Uint8Array(buf,o,nv);o+=pad(nv);if(h.hasCol)o+=pad(nv*3);
   const iA=new THREE.BufferAttribute(new (h.big?Uint32Array:Uint16Array)(IA),1),uvA=new THREE.BufferAttribute(new Float32Array(UV),2),tA=new THREE.BufferAttribute(Float32Array.from(TM),1);

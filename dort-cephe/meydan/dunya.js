@@ -20,12 +20,26 @@ export const lakeK=(x,z)=>smooth(-.4,-.58,fbm(x/360+40,z/360-20,6,3));
 export const wetK=(x,z)=>fbm(x/620,z/620,8,3);          // moist: forests; dry: steppe
 export const richK=(x,z)=>fbm(x/300,z/300,9,2);         // rich ground: more iron, now and then gold
 
-export function height(x,z){
+function rawHeight(x,z){
   const e=edgeK(x,z),r=rangeK(x,z);
   let h=6+fbm(x/420,z/420,1,4)*15+fbm(x/95,z/95,2,3)*3.2;
   const rg=ridged(x/220,z/220,4,4);h+=r*Math.pow(rg,1.6)*105;
   h+=e*(55+ridged(x/150,z/150,5,4)*150);
   const lk=lakeK(x,z)*(1-e)*(1-r*.8);if(lk>0)h=lerp(h,-7,lk);
+  return h}
+export{rawHeight}
+// ---------- castles: 24 of them spread over the land, each on ground levelled for it ----------
+const CN_=['Akkale','Karakale','Demirkale','Taşkale','Kartalkale','Kurtkale','Altınkale','Gümüşkale','Yeşilkale','Kızılkale','Ulukale','Sarıkale','Mavikale','Dağkale','Gölkale','Ormankale','Rüzgarkale','Şahinkale','Aslankale','Ayıkale','Boğakale','Geyikkale','Turnakale','Kuzgunkale'];
+const CNE=['White Keep','Black Keep','Iron Keep','Stone Keep','Eagle Keep','Wolf Keep','Gold Keep','Silver Keep','Green Keep','Red Keep','High Keep','Yellow Keep','Blue Keep','Hill Keep','Lake Keep','Wood Keep','Wind Keep','Falcon Keep','Lion Keep','Bear Keep','Bull Keep','Stag Keep','Crane Keep','Raven Keep'];
+export const CASTLES=(()=>{const R=rng(9001),out=[];let guard=0,md=330;
+  while(out.length<24&&guard++<40000){if(guard%4000===0)md-=25;const x=(R()-.5)*(HALF*2-700),z=(R()-.5)*(HALF*2-700);
+    let lo=1e9,hi=-1e9,ok=true;for(let a=0;a<6.28&&ok;a+=.5)for(const r of[0,14,26]){const h=rawHeight(x+Math.cos(a)*r,z+Math.sin(a)*r);if(h<3){ok=false;break}lo=Math.min(lo,h);hi=Math.max(hi,h)}
+    if(!ok||hi-lo>9||lakeK(x,z)>0||edgeK(x,z)>.05)continue;if(out.some(c=>Math.hypot(c.x-x,c.z-z)<md))continue;
+    out.push({x,z,y:(lo+hi)/2+.4,ad:CN_[out.length],en:CNE[out.length],k:out.length,a:Math.round(R()*4)*Math.PI/2})}
+  return out})();
+// ground under and round each castle is levelled (the castle stands on a pad, the land eases into it)
+export function height(x,z){let h=rawHeight(x,z);
+  for(const c of CASTLES){const dx=x-c.x,dz=z-c.z;if(dx*dx+dz*dz>48*48)continue;const d=Math.max(Math.abs(dx),Math.abs(dz)),w=smooth(46,24,d);if(w>0)h=lerp(h,c.y,w)}
   return h}
 export function slope(x,z){const d=1.5;return Math.hypot(height(x+d,z)-height(x-d,z),height(x,z+d)-height(x,z-d))/(2*d)}
 
@@ -60,7 +74,7 @@ export const NODE=[
 export function nodeAt(ci,cj){
   const x0=-HALF+ci*CELL,z0=-HALF+cj*CELL,r1=hash(ci,cj,101),r2=hash(ci,cj,202),r3=hash(ci,cj,303);
   const x=x0+2+r2*(CELL-4),z=z0+2+r3*(CELL-4);
-  if(BOX(x,z)>HALF-25)return null;
+  if(BOX(x,z)>HALF-25)return null;for(const c of CASTLES)if(Math.abs(x-c.x)<36&&Math.abs(z-c.z)<36)return null;
   const h=height(x,z);if(h<1.2)return null;const sl=slope(x,z);if(sl>1.05)return null;
   const w=wetK(x,z),e=edgeK(x,z),rk=rangeK(x,z),forest=smooth(-.08,.32,w)*(1-smooth(95,130,h));
   const rocky=clamp(smooth(22,70,h)*.7+rk*.5+smooth(-.1,-.45,w)*.35+e*.4,0,1);
