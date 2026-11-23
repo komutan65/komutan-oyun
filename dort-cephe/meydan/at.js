@@ -4,7 +4,7 @@
    seat[clip][frame] = [height, forward offset, pitch] of the saddle, so the rider rides with the horse's motion. */
 import * as THREE from 'three';
 const RIM='{float rim=pow(1.-clamp(dot(normal,normalize(vViewPosition)),0.,1.),2.6);outgoingLight+=rim*.3*vec3(1.,.93,.8)*(.5+.5*diffuseColor.rgb);}\n';
-const LOOP={idle:1,walk:1,run:1};
+const LOOP={idle:1,walk:1,run:1,graze:1};
 export async function loadHorses(scene,CAP,V){
   const r=await fetch('model/at.bin?v='+V);if(!r.ok)throw new Error('at.bin');const buf=await r.arrayBuffer(),dv=new DataView(buf),jl=dv.getUint32(0,true),pad=a=>a+((4-a%4)%4);
   const h=JSON.parse(new TextDecoder().decode(new Uint8Array(buf,4,jl)));let o=4+pad(jl);const nv=h.nv;

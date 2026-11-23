@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import {SES} from './ses.js?v=20261123e';
+import {SES} from './ses.js?v=20261123f';
+import {loadHorses} from './meydan/at.js?v=20261123f';
 /* Dört Cephe. Each client simulates its own square (and any computer rivals);
    units sent to a player are simulated by that player. Others see 2 snapshots a second. */
 const A=window.ARENA,EN=window.LANG==='en',TL=(t,e)=>EN?e:t;
@@ -10,7 +11,7 @@ const num=(v,d=0)=>typeof v==='number'&&isFinite(v)?v:d;
 // ---------- rules ----------
 let BUILD_T={denizalti:16,gemi:20},TBUILD={ok:7,top:10,hava:9,roket:14,duvar:2.5},WMAX=12,RUNWAY_COST=200,MS_COST=100,MS_T=10,MS_HP=120,RUNWAY_T=12,YARD_COST=100,YARD_T=15,MAX_SHIPS=4,PLANE_T=12,SHIP_SEE=80,SHIP_STAND=95,SUB_TIME=16,WALL=3,START_MONEY=200*2.5,CASTLE_HP=500,TRICKLE=0.5,MAX_TOWERS=40;
 // a base trains one soldier at a time and fields a limited army, so nobody can flood the map
-let TRAIN={piyade:2,atli:3,koc:7,balon:6},POP={piyade:1,atli:1,koc:3,balon:2},POP_CAP=40,FUZE_CD=6,DBR_FIX=100,VER='47';
+let TRAIN={piyade:2,atli:3,koc:7,balon:6},POP={piyade:1,atli:1,koc:3,balon:2},POP_CAP=40,FUZE_CD=6,DBR_FIX=100,VER='48';
 // the lesson: an empty 1v1 map where nothing costs anything and nothing has to be waited for
 const TUT=!!(A&&A.tutorial);
 if(TUT){BUILD_T={denizalti:.5,gemi:.5};for(const k in TBUILD)TBUILD[k]=.2;RUNWAY_T=YARD_T=PLANE_T=.5;FUZE_CD=.5;TRAIN={piyade:.2,atli:.2,koc:.2,balon:.2}}
@@ -2187,11 +2188,11 @@ const CHR={},CHR_CAP=200,CHR_FAR=175;let curId=0,chrOn=true,curSY=1;
 const CHR_DEF={piyade:{tex:'knight'},dalgic:{tex:'rogue'},isci:{tex:'barbarian'},binici:{tex:'knight'},balonci:{tex:'knight'}};
 // a soft warm rim of light round every figure, so they stand out from the ground like painted miniatures
 const RIM='{float rim=pow(1.-clamp(dot(normal,normalize(vViewPosition)),0.,1.),2.6);outgoingLight+=rim*.38*vec3(1.,.93,.8)*(.5+.5*diffuseColor.rgb);outgoingLight=mix(vec3(dot(outgoingLight,vec3(.299,.587,.114))),outgoingLight,1.12);}\n';
-function chrMat(tex){const m=new THREE.MeshStandardMaterial({color:'#ffffff',roughness:.72,metalness:.05,vertexColors:!tex});
+function chrMat(tex,cut){const m=new THREE.MeshStandardMaterial({color:'#ffffff',roughness:.72,metalness:.05,vertexColors:!tex});
   if(tex){const t=new THREE.TextureLoader().load('model/'+tex+'_texture.png?v='+VER);t.colorSpace=THREE.SRGBColorSpace;t.flipY=false;t.magFilter=THREE.NearestFilter;t.minFilter=THREE.LinearMipmapLinearFilter;m.map=t}
-  if(tex)m.onBeforeCompile=sh=>{sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nattribute float aTeam;varying float vTeam;varying vec3 vTint;').replace('#include <begin_vertex>','#include <begin_vertex>\nvTeam=aTeam;\n#ifdef USE_INSTANCING_COLOR\nvTint=instanceColor.rgb;\n#else\nvTint=vec3(1.);\n#endif\n');
-    sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying float vTeam;varying vec3 vTint;').replace('#include <color_fragment>','diffuseColor.rgb=mix(diffuseColor.rgb,mix(vec3(dot(diffuseColor.rgb,vec3(.3,.59,.11))),diffuseColor.rgb,.25)*vTint*1.9,vTeam);').replace('#include <opaque_fragment>',RIM+'#include <opaque_fragment>')};     // only the cloak takes the team colour
-  return m}
+  if(tex)m.onBeforeCompile=sh=>{sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nattribute float aTeam;varying float vTeam;varying vec3 vTint;varying float vOY;').replace('#include <begin_vertex>','#include <begin_vertex>\nvTeam=aTeam;vOY=position.y;\n#ifdef USE_INSTANCING_COLOR\nvTint=instanceColor.rgb;\n#else\nvTint=vec3(1.);\n#endif\n');
+    sh.fragmentShader=sh.fragmentShader.replace('void main() {','void main() {'+(cut?'\nif(vOY<.62)discard;':'')).replace('#include <common>','#include <common>\nvarying float vTeam;varying vec3 vTint;varying float vOY;').replace('#include <color_fragment>','diffuseColor.rgb=mix(diffuseColor.rgb,mix(vec3(dot(diffuseColor.rgb,vec3(.3,.59,.11))),diffuseColor.rgb,.25)*vTint*1.9,vTeam);').replace('#include <opaque_fragment>',RIM+'#include <opaque_fragment>')};     // only the cloak takes the team colour
+  m.customProgramCacheKey=()=>cut?'chr4-cut':'chr4';return m}
 // one static model (KayKit nature, CC0) from the same baked format: first frame only
 async function loadGeo(key){const r=await fetch('model/'+key+'.bin?v='+VER);if(!r.ok)throw new Error(key);const buf=await r.arrayBuffer(),dv=new DataView(buf),jl=dv.getUint32(0,true),pad=a=>a+((4-a%4)%4);
   const h=JSON.parse(new TextDecoder().decode(new Uint8Array(buf,4,jl)));let o=4+pad(jl);const nv=h.nv;const IA=h.big?new Uint32Array(buf,o,h.ni):new Uint16Array(buf,o,h.ni);o+=pad(IA.byteLength);const UV=new Float32Array(buf,o,nv*2);o+=UV.byteLength;o+=pad(nv);if(h.hasCol)o+=pad(nv*3);
@@ -2207,13 +2208,14 @@ async function loadChr(key){try{
   const IA=h.big?new Uint32Array(buf,o,h.ni):new Uint16Array(buf,o,h.ni);o+=pad(IA.byteLength);const UV=new Float32Array(buf,o,nv*2);o+=UV.byteLength;const TM=new Uint8Array(buf,o,nv);o+=pad(nv);
   let CL=null;if(h.hasCol){CL=new Uint8Array(buf,o,nv*3);o+=pad(nv*3)}
   const iA=new THREE.BufferAttribute(new (h.big?Uint32Array:Uint16Array)(IA),1),uvA=new THREE.BufferAttribute(new Float32Array(UV),2),tA=new THREE.BufferAttribute(Float32Array.from(TM),1),cA=CL?new THREE.BufferAttribute(Float32Array.from(CL,v=>v/255),3):null;
-  const mat=chrMat(CHR_DEF[key].tex),clips={};
+  const mat=chrMat(CHR_DEF[key].tex,key==='binici'),clips={};
   for(const k of h.order){const c=h.clips[k],ms=[];for(let f=0;f<c.n;f++){const a=new Int16Array(buf,o,nv*3);o+=pad(nv*6);const P3=new Float32Array(nv*3);for(let i=0;i<P3.length;i++)P3[i]=a[i]*h.q;
       const g=new THREE.BufferGeometry();g.setIndex(iA);g.setAttribute('position',new THREE.BufferAttribute(P3,3));g.setAttribute('uv',uvA);g.setAttribute('aTeam',tA);if(cA)g.setAttribute('color',cA);g.computeVertexNormals();g.computeBoundingSphere();
       const m=new THREE.InstancedMesh(g,mat,CHR_CAP);m.castShadow=true;m.receiveShadow=false;m.frustumCulled=false;m.count=0;m.visible=false;m.setColorAt(0,new THREE.Color('#fff'));m.userData.n=0;scene.add(m);ms.push(m)}
     clips[k]=ms}
   CHR[key]={clips,ok:true}}catch(e){console.warn('model',key,e)}}
-function loadChars(){for(const k of Object.keys(CHR_DEF))if(k!=='at')loadChr(k);try{CHR.at={clips:horseClips(),ok:true}}catch(e){console.warn('horse',e)}}
+let HZ=null;
+function loadChars(){for(const k of Object.keys(CHR_DEF))if(k!=='at')loadChr(k);loadHorses(scene,CHR_CAP,VER).then(h=>{HZ=h}).catch(e=>{console.warn('horse',e);try{CHR.at={clips:horseClips(),ok:true}}catch(e2){console.warn('horse',e2)}})}
 // ---- our own horse, modelled here in code (no outside files): a smooth body, arched neck, long head, mane and tail, and four jointed legs.
 // A gallop cycle and a resting pose are baked into frames like the soldiers.
 function horseGeo(ph,run){
@@ -2304,7 +2306,7 @@ function horseClips(){const mat=new THREE.MeshStandardMaterial({vertexColors:tru
 const COATS=['#7a4524','#5a3018','#8f5a2e','#2b2420','#b9a48a','#6b4a33','#a06a3a','#ece6dc'].map(c=>new THREE.Color(c));
 const CHS={piyade:1.2,isci:1.32,dalgic:1.38};     // everyone in proportion: the baked models come in different heights
 const HRS={s:1.3,rot:0,ry:2.27,rz:.14,rs:1.05};window.HRS=HRS;
-const chrReady=t=>t==='atli'?!!(CHR.at&&CHR.binici):!!CHR[t];
+const chrReady=t=>t==='atli'?!!((HZ||CHR.at)&&CHR.binici):!!CHR[t];
 // put one character into the frame mesh for its pose: walking, idle or striking, each soldier a little out of step with the next
 function chrPush(key,clip,ph,m4,from,tint){const C=CHR[key];const cl=C.clips[clip]||C.clips.idle||C.clips.walk;const f=Math.min(cl.length-1,Math.floor(((ph%1)+1)%1*cl.length)),m=cl[f];const i=m.userData.n;if(i>=CHR_CAP)return;m.userData.n++;m.setMatrixAt(i,m4);m.setColorAt(i,tint||(from<0?WHITE_C:tc[from]))}
 const WHITE_C=new THREE.Color('#ffffff'),SUITC=TEAM.map(c=>new THREE.Color('#15171a').lerp(new THREE.Color(c),.07));     // frogmen wear plain black wetsuits with just a hint of their side's colour
@@ -2312,7 +2314,7 @@ let BLOB=null,blobN=0;
 function blobAt(x,z,r){if(!BLOB){const t=(()=>{const c=document.createElement('canvas');c.width=c.height=64;const g=c.getContext('2d'),gr=g.createRadialGradient(32,32,2,32,32,31);gr.addColorStop(0,'rgba(0,0,0,.55)');gr.addColorStop(.6,'rgba(0,0,0,.25)');gr.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=gr;g.fillRect(0,0,64,64);return new THREE.CanvasTexture(c)})();
     BLOB=new THREE.InstancedMesh(new THREE.PlaneGeometry(2,2).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({map:t,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2}),120);BLOB.frustumCulled=false;BLOB.count=0;BLOB.renderOrder=2;scene.add(BLOB)}
   if(blobN>=120)return;mt.compose(vp.set(x,Math.max(heightAt(x,z),WL)+.12,z),qr.identity(),vs.set(r,1,r));BLOB.setMatrixAt(blobN++,mt);vs.set(1,1,1)}
-function chrFlush(){if(BLOB){BLOB.count=blobN;BLOB.instanceMatrix.needsUpdate=true;blobN=0}for(const k in CHR)for(const cl of Object.values(CHR[k].clips))for(const m of cl){const n=m.userData.n,was=m.count;m.count=n;m.visible=n>0;if(n||was){m.instanceMatrix.needsUpdate=true;if(m.instanceColor)m.instanceColor.needsUpdate=true}m.userData.n=0}}
+function chrFlush(){if(HZ)HZ.flush();if(BLOB){BLOB.count=blobN;BLOB.instanceMatrix.needsUpdate=true;blobN=0}for(const k in CHR)for(const cl of Object.values(CHR[k].clips))for(const m of cl){const n=m.userData.n,was=m.count;m.count=n;m.visible=n>0;if(n||was){m.instanceMatrix.needsUpdate=true;if(m.instanceColor)m.instanceColor.needsUpdate=true}m.userData.n=0}}
 const turnTo=(a,b,m)=>{let d=b-a;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;return a+Math.max(-m,Math.min(m,d))};
 let curTA=0,curTA2=0,curRoll=0;
 const angLerp=(a,b,t)=>{let d=b-a;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;return a+d*t};
@@ -2331,6 +2333,9 @@ function drawUnits(rdt){
     if(type==='balon'){const o=BOFF.get(curId);if(o){x+=o.x;z+=o.z}}
     if(chrOn&&chrReady(type)&&(type==='atli'||camera.position.distanceToSquared(vp.set(x,0,z))<CHR_FAR*CHR_FAR)){     // the real model, close enough to be seen
       const T=now()/1000,sd=(curId*.6180339)%1,y=(pitchY??unitY(UNITS[type],x,z));vp.set(x,y,z);qt.setFromAxisAngle(UP,dir);if(pitch){qr.setFromAxisAngle(XA,pitch);qt.multiply(qr)}mx.compose(vp,qt,vs.setScalar(CHS[type]||1));vs.set(1,1,1);
+      if(type==='atli'&&HZ){if(HRS.fi)moving=false;const hs=1.37,rs=HRS.rs;mt.makeScale(hs,hs,hs);mo.copy(mx).multiply(mt);const coat=COATS[Math.floor(sd*97)%COATS.length];
+        const g=moving?'run':((T*.03+sd)%1)<.4?'graze':'idle',st=HZ.push(g,moving?T*1.15+sd:g==='graze'?T/3.2+sd:T/6.25+sd,mo,coat);
+        mt.compose(vp.set(0,st[0]*hs-rs*.745,st[1]*hs),qr.setFromAxisAngle(XA,st[2]),vs.set(rs,rs,rs));mo.copy(mx).multiply(mt);vs.set(1,1,1);chrPush('binici',atk!=null?'atk':'idle',atk!=null?atk:.15,mo,from);return}
       if(type==='atli'){if(HRS.fi)moving=false;const H=HRS,br=moving?0:Math.sin(T*2.2+sd*6.28),bob=moving?Math.sin((((T*1.25+sd)%1+1)%1)*Math.PI*4)*.07*H.s+.03:0;     // standing still the horse breathes and shifts a little, galloping it rocks the rider
         mt.compose(vp.set(0,0,0),qr.setFromAxisAngle(UP,H.rot+(moving?0:Math.sin(T*.7+sd*9)*.04)),vs.set(H.s,H.s*(1+br*.012),H.s*(1-br*.004)));mo.copy(mx).multiply(mt);vs.set(1,1,1);
         const coat=COATS[Math.floor(sd*97)%COATS.length];if(moving)chrPush('at','walk',T*1.25+sd,mo,-1,coat);else chrPush('at','idle',T*.22+sd,mo,-1,coat);

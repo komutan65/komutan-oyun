@@ -7,7 +7,7 @@ export const S={};
 
 // the shadow box follows the player, stepped in whole shadow-map texels as seen from the sun, so shadow edges never crawl or flicker
 const SUN_D=new THREE.Vector3(-120,180,90).normalize(),SU=new THREE.Vector3().crossVectors(SUN_D,new THREE.Vector3(0,1,0)).normalize(),SV=new THREE.Vector3().crossVectors(SU,SUN_D).normalize(),SP=new THREE.Vector3();
-export function placeSun(x,y,z){const sun=S.sun,tex=160/sun.shadow.mapSize.x;SP.set(x,y,z);let a=SP.dot(SU),b=SP.dot(SV);const c=SP.dot(SUN_D);a=Math.round(a/tex)*tex;b=Math.round(b/tex)*tex;
+export function placeSun(x,y,z){const sun=S.sun,tex=210/sun.shadow.mapSize.x;SP.set(x,y,z);let a=SP.dot(SU),b=SP.dot(SV);const c=SP.dot(SUN_D);a=Math.round(a/tex)*tex;b=Math.round(b/tex)*tex;
   SP.copy(SU).multiplyScalar(a).addScaledVector(SV,b).addScaledVector(SUN_D,c);sun.target.position.copy(SP);sun.position.copy(SP).addScaledVector(SUN_D,330);sun.target.updateMatrixWorld()}
 export function makeScene(cv,small){
   const renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true,powerPreference:'high-performance'});
@@ -17,7 +17,7 @@ export function makeScene(cv,small){
   const camera=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,.5,3400);
   scene.add(new THREE.HemisphereLight('#dfeaff','#4f5f35',1.0));
   const sun=new THREE.DirectionalLight('#fff0d6',2.5);sun.position.set(-120,180,90);sun.castShadow=true;const sz=2048;sun.shadow.mapSize.set(sz,sz);
-  const sc=sun.shadow.camera;sc.left=-80;sc.right=80;sc.top=80;sc.bottom=-80;sc.near=10;sc.far=700;sun.shadow.bias=-.0004;sun.shadow.normalBias=.32;sun.shadow.radius=2.5;scene.add(sun,sun.target);
+  const sc=sun.shadow.camera;sc.left=-105;sc.right=105;sc.top=105;sc.bottom=-105;sc.near=10;sc.far=700;sun.shadow.bias=-.0004;sun.shadow.normalBias=.32;sun.shadow.radius=2.5;scene.add(sun,sun.target);
   const fill=new THREE.DirectionalLight('#a9c0ff',.38);fill.position.set(120,60,-100);scene.add(fill);
   // sky dome with a soft sun and a few painted clouds
   {const g=new THREE.SphereGeometry(3200,32,16),m=new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,fog:false,uniforms:{sd:{value:new THREE.Vector3(-120,180,90).normalize()}},
@@ -68,7 +68,16 @@ export function makeGround(){const {scene,small}=S,tex=detailTex();
   S.ground={mat:near.m,U:far.U,chunks:new Map(),queue:[],cx:null,cz:null};
   const nc=document.createElement('canvas');nc.width=nc.height=128;{const g=nc.getContext('2d'),id=g.createImageData(128,128);for(let j=0;j<128;j++)for(let i=0;i<128;i++){const a=Math.sin(i/128*6.283*3+Math.sin(j/128*6.283*2)*1.3),b=Math.sin(j/128*6.283*4+Math.sin(i/128*6.283*3)*1.1),k=(j*128+i)*4;id.data[k]=128+a*38;id.data[k+1]=128+b*38;id.data[k+2]=255;id.data[k+3]=255}g.putImageData(id,0,0)}
   const nt=new THREE.CanvasTexture(nc);nt.wrapS=nt.wrapT=THREE.RepeatWrapping;nt.repeat.set(160,160);
-  const wm=new THREE.MeshStandardMaterial({color:'#2d6c8f',roughness:.18,metalness:.12,transparent:true,opacity:.86,normalMap:nt,normalScale:new THREE.Vector2(.35,.35)});S.waterN=nt;
+  // the lake bed's depth, read once from the land shape, lets the water shade itself: clear turquoise over the shallows, deep blue further out, foam at the edge
+  const DN=512,dd=new Uint8Array(DN*DN);for(let j=0;j<DN;j++)for(let i=0;i<DN;i++){const h=height(-HALF+(i+.5)/DN*HALF*2,-HALF+(j+.5)/DN*HALF*2);dd[i+j*DN]=Math.max(0,Math.min(255,Math.round((-h+1.5)*28)))}
+  const dt=new THREE.DataTexture(dd,DN,DN,THREE.RedFormat);dt.magFilter=dt.minFilter=THREE.LinearFilter;dt.needsUpdate=true;
+  const WU={dep:{value:dt},t:{value:0},half:{value:HALF}};S.waterU=WU;
+  const wm=new THREE.MeshStandardMaterial({color:'#ffffff',roughness:.12,metalness:.1,transparent:true,opacity:.9,normalMap:nt,normalScale:new THREE.Vector2(.42,.42)});S.waterN=nt;
+  wm.onBeforeCompile=sh=>{Object.assign(sh.uniforms,{uDep:WU.dep,uT:WU.t,uHalf:WU.half});
+    sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vWp;').replace('#include <worldpos_vertex>','#include <worldpos_vertex>\nvWp=(modelMatrix*vec4(transformed,1.)).xyz;');
+    sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vWp;uniform sampler2D uDep;uniform float uT,uHalf;')
+      .replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\n{vec3 n2=texture2D(normalMap,vWp.xz/23.+vec2(-uT*.011,uT*.007)).xyz*2.-1.;normal=normalize(normal+vec3(n2.x,0.,n2.y)*.18);}')
+      .replace('#include <color_fragment>','#include <color_fragment>\n{vec2 uv=(vWp.xz+uHalf)/(2.*uHalf);float d=texture2D(uDep,uv).r*255./28.-1.5;d=clamp(d,0.,30.);\n vec3 shal=vec3(.25,.62,.62),mid=vec3(.09,.36,.52),deep=vec3(.04,.17,.33);vec3 c=mix(shal,mid,smoothstep(.0,2.5,d));c=mix(c,deep,smoothstep(2.5,12.,d));\n float fo=(1.-smoothstep(.05,.7,d))*(.6+.4*sin(vWp.x*.9+vWp.z*.7+uT*2.));diffuseColor.rgb=mix(c,vec3(.95,.98,1.),fo*.75);diffuseColor.a=mix(.62,.93,smoothstep(.0,3.,d))+fo*.2;}')};
   const w=new THREE.Mesh(new THREE.PlaneGeometry(HALF*2+800,HALF*2+800).rotateX(-Math.PI/2),wm);w.position.y=0;w.renderOrder=1;scene.add(w);S.water=w}
 export function updateGround(px,pz){const G=S.ground,cx=Math.floor((px+HALF)/CHUNK),cz=Math.floor((pz+HALF)/CHUNK);
   if(cx!==G.cx||cz!==G.cz){G.cx=cx;G.cz=cz;const want=new Set();
@@ -80,21 +89,29 @@ export function updateGround(px,pz){const G=S.ground,cx=Math.floor((px+HALF)/CHU
   if(all){G.U.c.value.set(-HALF+(cx+.5)*CHUNK,-HALF+(cz+.5)*CHUNK);G.U.r.value=(NEAR+.5)*CHUNK-3}else G.U.r.value=0}
 
 // ---------- trees, rocks, bushes ----------
-function col(g,c){const n=g.attributes.position.count,a=new Float32Array(n*3),C=new THREE.Color(c);for(let i=0;i<n;i++){a[i*3]=C.r;a[i*3+1]=C.g;a[i*3+2]=C.b}g.setAttribute('color',new THREE.BufferAttribute(a,3));return g}
+export function col(g,c){const n=g.attributes.position.count,a=new Float32Array(n*3),C=new THREE.Color(c);for(let i=0;i<n;i++){a[i*3]=C.r;a[i*3+1]=C.g;a[i*3+2]=C.b}g.setAttribute('color',new THREE.BufferAttribute(a,3));return g}
 // colour each vertex by its height between two colours (darker at the bottom, sunlit at the top)
 function grad(g,c0,c1,y0,y1){const p=g.attributes.position,n=p.count,a=new Float32Array(n*3),A=new THREE.Color(c0),B=new THREE.Color(c1),T=new THREE.Color();for(let i=0;i<n;i++){T.copy(A).lerp(B,clamp((p.getY(i)-y0)/(y1-y0),0,1));a[i*3]=T.r;a[i*3+1]=T.g;a[i*3+2]=T.b}g.setAttribute('color',new THREE.BufferAttribute(a,3));return g}
 export function merge(list,keepUV){const gs=list.map(g=>g.index?g.toNonIndexed():g);let n=0;for(const g of gs)n+=g.attributes.position.count;const P=new Float32Array(n*3),C=new Float32Array(n*3),UV=keepUV?new Float32Array(n*2):null;let o=0;
   for(const g of gs){const c=g.attributes.position.count;P.set(g.attributes.position.array,o*3);if(g.attributes.color)C.set(g.attributes.color.array,o*3);else C.fill(1,o*3,(o+c)*3);if(UV&&g.attributes.uv)UV.set(g.attributes.uv.array,o*2);o+=c}
   const m=new THREE.BufferGeometry();m.setAttribute('position',new THREE.BufferAttribute(P,3));m.setAttribute('color',new THREE.BufferAttribute(C,3));if(UV)m.setAttribute('uv',new THREE.BufferAttribute(UV,2));m.computeVertexNormals();m.computeBoundingSphere();return m}
 function jitter(g,amt,seed){let s=seed;const R=()=>(s=(s*16807)%2147483647)/2147483647;const p=g.attributes.position,map=new Map();for(let i=0;i<p.count;i++){const k=p.getX(i).toFixed(3)+','+p.getY(i).toFixed(3)+','+p.getZ(i).toFixed(3);if(!map.has(k))map.set(k,[1+(R()-.5)*amt,1+(R()-.5)*amt*.7,1+(R()-.5)*amt]);const f=map.get(k);p.setXYZ(i,p.getX(i)*f[0],p.getY(i)*f[1],p.getZ(i)*f[2])}return g}
-function rockGeo(seed,c1,c2,bits){const r=jitter(new THREE.DodecahedronGeometry(1.25,0),.45,seed);r.translate(0,.55,0);r.scale(1.25,.8,1.1);grad(r,'#6f6c66',c1,0,1.6);
+function rockGeo(seed,c1,c2,bits){const r=jitter(new THREE.IcosahedronGeometry(1.2,1),.38,seed);r.translate(0,.5,0);r.scale(1.3,.78,1.12);grad(r,'#5f5c57',c1,0,1.6);
+  {const p=r.attributes.position,C=r.attributes.color;let s2=seed*13;const R2=()=>(s2=(s2*16807)%2147483647)/2147483647;for(let i=0;i<p.count;i++){const k=.82+R2()*.3;C.setXYZ(i,C.getX(i)*k,C.getY(i)*k,C.getZ(i)*k)}}
   const out=[r];let s=seed*7;const R=()=>(s=(s*16807)%2147483647)/2147483647;for(let k=0;k<(bits||0);k++){const o=new THREE.TetrahedronGeometry(.3+R()*.16,0);const a=R()*6.28,h=.4+R()*.7;o.translate(Math.cos(a)*1.05,h,Math.sin(a)*.95);out.push(col(o,c2))}
-  const ms=jitter(new THREE.SphereGeometry(.9,6,2,0,6.283,0,1.1),.3,seed+3);ms.scale(1.2,.5,1.05);ms.translate(0,.95,0);out.push(col(ms,'#5d7a35'));return merge(out)}
+  const ms=jitter(new THREE.SphereGeometry(.95,8,3,0,6.283,0,1.05),.3,seed+3);ms.scale(1.2,.42,1.05);ms.translate(0,1.0,0);out.push(grad(ms,'#4f6a2c','#7a9a45',.9,1.4));
+  const sm=jitter(new THREE.DodecahedronGeometry(.45,0),.4,seed+9);sm.translate(1.25,.2,.4);out.push(grad(sm,'#5f5c57',c1,0,.6));return merge(out)}
 export function nodeGeos(){
-  const pineL=[col(new THREE.CylinderGeometry(.14,.28,2.4,7).translate(0,1.2,0),'#4a3220')];for(let k=0;k<4;k++){const r=1.75-k*.36,h=1.9-k*.15,c=new THREE.ConeGeometry(r,h,8,1,true);jitter(c,.18,11+k);c.translate(0,1.8+k*1.15,0);pineL.push(grad(c,'#1f3f22','#4c7f3c',1.8+k*1.15-h/2,1.8+k*1.15+h/2))}
+  const pineL=[grad(new THREE.CylinderGeometry(.12,.3,3,7).translate(0,1.5,0),'#3a2618','#5a3d26',0,3)];for(let k=0;k<5;k++){const r=1.85-k*.32,h=1.6-k*.1,c=new THREE.ConeGeometry(r,h,10,2,true);jitter(c,.2,11+k);
+    {const p=c.attributes.position;for(let i=0;i<p.count;i++){const y=p.getY(i);if(y<-h/2+.01){const a=Math.atan2(p.getZ(i),p.getX(i));p.setY(i,y-.18-.12*Math.sin(a*5+k))}}}     // tips of each tier droop, unevenly
+    c.translate(0,1.7+k*.98,0);pineL.push(grad(c,k%2?'#1b3a20':'#21432a',k%2?'#47773a':'#558a45',1.7+k*.98-h/2,1.7+k*.98+h/2))}
+  {const tp=new THREE.ConeGeometry(.35,1,6);tp.translate(0,6.6,0);pineL.push(grad(tp,'#2b5230','#5d9150',6.1,7.1))}
   const pine=merge(pineL);
-  const oakL=[grad(new THREE.CylinderGeometry(.22,.4,2.8,6,1,true).translate(0,1.4,0),'#3f2a19','#6b4a2e',0,2.8)];const B=[[0,3.9,0,1.75],[1.2,3.4,.5,1.3],[-1.1,3.5,-.5,1.35],[.3,3.2,-1.1,1.2],[-.3,4.7,.4,1.15],[.6,4.3,.8,1.05],[-.8,4.1,.9,1]];
-  B.forEach(([x,y,z,r],k)=>{const b=jitter(new THREE.IcosahedronGeometry(r,0),.3,3+k*5);b.translate(x,y,z);oakL.push(grad(b,'#305b24','#7aae4a',y-r,y+r))});
+  const oakL=[grad(new THREE.CylinderGeometry(.22,.42,2.8,7,1,true).translate(0,1.4,0),'#3a2617','#6b4a2e',0,2.8)];
+  for(const[a,l]of[[.5,1.5],[2.6,1.3],[4.4,1.4]]){const br=new THREE.CylinderGeometry(.07,.14,l,5);br.translate(0,l/2,0);br.rotateZ(.9);br.rotateY(a);br.translate(0,2.5,0);oakL.push(col(br,'#4a3220'))}
+  const B=[[0,3.9,0,1.75],[1.25,3.4,.5,1.3],[-1.15,3.5,-.5,1.35],[.3,3.2,-1.15,1.2],[-.3,4.75,.4,1.15],[.65,4.35,.8,1.05],[-.85,4.1,.95,1],[1.1,4.6,-.6,.9],[-1.3,3,.7,.85],[.2,5.3,-.3,.8]];
+  const TONES=[['#2f5a23','#79ad49'],['#2a5020','#6d9e3f'],['#38632a','#8ab855'],['#2c5422','#7fae4c']];
+  B.forEach(([x,y,z,r],k)=>{const b=jitter(new THREE.IcosahedronGeometry(r,0),.3,3+k*5);b.translate(x,y,z);const T=TONES[k%4];oakL.push(grad(b,T[0],T[1],y-r,y+r))});
   const oak=merge(oakL);
   const rock=rockGeo(11,'#a3a097','#a3a097',0),iron=rockGeo(13,'#8a8580','#9a5a32',7),gold=rockGeo(17,'#908a80','#f2c33a',6);
   const bushL=[];[[0,.6,0,.85],[.55,.45,.25,.6],[-.5,.5,-.2,.65]].forEach(([x,y,z,r],k)=>{const b=jitter(new THREE.IcosahedronGeometry(r,0),.3,21+k);b.translate(x,y,z);bushL.push(grad(b,'#28501f','#5c9a3a',y-r,y+r))});
@@ -108,9 +125,13 @@ export function nodeGeos(){
 // leaves sway in the wind (more at the top); the far copies too, so nothing jumps when they swap
 // the commander's place on screen (pixels), his depth and a radius: trees in front of him there dissolve
 export const FOC={value:new THREE.Vector4(-1e4,-1e4,0,1)};
+const DISS='{float k=smoothstep(5.,13.,vCamD);if(vCamD<uFoc.z-2.){float r=length(gl_FragCoord.xy-uFoc.xy)/uFoc.w;k=min(k,mix(.08,1.,smoothstep(.55,1.,r)));}if(k<.2)discard;if(k<1.&&fract(sin(dot(floor(gl_FragCoord.xy),vec2(12.9898,78.233)))*43758.5453)>k)discard;}';
+export function seeThrough(m,key){const prev=m.onBeforeCompile;m.onBeforeCompile=(sh,r)=>{if(prev)prev(sh,r);sh.uniforms.uFoc=FOC;
+    sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying float vCamD;uniform vec4 uFoc;').replace('#include <clipping_planes_fragment>','#include <clipping_planes_fragment>\n'+DISS);
+    sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying float vCamD;').replace('#include <project_vertex>','#include <project_vertex>\nvCamD=-mvPosition.z;')};m.customProgramCacheKey=()=>'see-'+key;return m}
 // and a tree right in front of the camera dissolves, so it never hides the commander
 function swayMat(){const m=new THREE.MeshLambertMaterial({vertexColors:true});const T={value:0};m.onBeforeCompile=sh=>{sh.uniforms.uT=T;
-    sh.uniforms.uFoc=FOC;sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying float vCamD;uniform vec4 uFoc;').replace('#include <clipping_planes_fragment>','#include <clipping_planes_fragment>\n{float k=smoothstep(5.,13.,vCamD);if(vCamD<uFoc.z-2.){float r=length(gl_FragCoord.xy-uFoc.xy)/uFoc.w;k=min(k,mix(.08,1.,smoothstep(.55,1.,r)));}if(k<1.&&fract(sin(dot(floor(gl_FragCoord.xy),vec2(12.9898,78.233)))*43758.5453)>k)discard;}');
+    sh.uniforms.uFoc=FOC;sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying float vCamD;uniform vec4 uFoc;').replace('#include <clipping_planes_fragment>','#include <clipping_planes_fragment>\n{float k=smoothstep(5.,13.,vCamD);if(vCamD<uFoc.z-2.){float r=length(gl_FragCoord.xy-uFoc.xy)/uFoc.w;k=min(k,mix(.08,1.,smoothstep(.55,1.,r)));}if(k<.2)discard;if(k<1.&&fract(sin(dot(floor(gl_FragCoord.xy),vec2(12.9898,78.233)))*43758.5453)>k)discard;}');
     sh.vertexShader=sh.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\nvCamD=-mvPosition.z;').replace('#include <common>','#include <common>\nuniform float uT;varying float vCamD;').replace('#include <begin_vertex>','#include <begin_vertex>\n#ifdef USE_INSTANCING\n{vec4 wp=instanceMatrix*vec4(0.,0.,0.,1.);float k=max(0.,position.y-1.5)*.035;transformed.x+=sin(uT*1.3+wp.x*.05+wp.z*.07)*k;transformed.z+=cos(uT*1.1+wp.x*.06)*k*.7;}\n#endif\n')};m.userData.T=T;return m}
 const NEAR_T=230,ROCK_R=420,FAR_T=S_FAR();function S_FAR(){return S.small?950:1150}
 export function makeNodes(){const geos=nodeGeos(),mat=swayMat(),rmat=new THREE.MeshLambertMaterial({vertexColors:true}),small=S.small;
@@ -136,22 +157,27 @@ export function updateNodes(px,pz,t){const N=S.nodes;N.mat.userData.T.value=t;if
   IM.forEach((m,k)=>{m.count=cnt[k];m.instanceMatrix.needsUpdate=true;if(m.instanceColor)m.instanceColor.needsUpdate=true})}
 
 // ---------- grass tufts, flowers and pebbles round the player (they grow in at the edge, never pop) ----------
-export function makeClutter(){const blades=[],cl=[];for(let b=0;b<6;b++){const a=b/6*Math.PI,h=.34+(b%3)*.12,w=.13,c=Math.cos(a)*w,sn=Math.sin(a)*w,l=Math.cos(a+1)*.09,lz=Math.sin(a+1)*.09;
-    blades.push(-c,0,-sn, c,0,sn, l,h,lz, c,0,sn, -c,0,-sn, l,h,lz);for(let k=0;k<2;k++)cl.push(.45,.55,.28, .45,.55,.28, .9,1,.62)}
+export function makeClutter(){const blades=[],cl=[];for(let b=0;b<6;b++){const a=b/6*Math.PI*1.3+b*.4,h=.32+((b*37)%5)*.09,w=.075,c=Math.cos(a)*w,sn=Math.sin(a)*w,bx=Math.cos(a+1.57)*(.05+b%3*.04),bz=Math.sin(a+1.57)*(.05+b%3*.04);
+    const ox=Math.cos(b*2.3)*.12,oz=Math.sin(b*2.3)*.12,mx=ox+bx*.4,mz=oz+bz*.4,tx=ox+bx,tz=oz+bz;
+    // two quads bending outwards, then the tip
+    const P=[[ox-c,0,oz-sn],[ox+c,0,oz+sn],[mx+c*.7,h*.55,mz+sn*.7],[mx-c*.7,h*.55,mz-sn*.7]];
+    const quad=(A,B,C,D,ca,cb)=>{blades.push(...A,...B,...C,...A,...C,...D,...B,...A,...C,...C,...A,...D);for(const x of[ca,ca,cb,ca,cb,cb,ca,ca,cb,cb,ca,cb])cl.push(...x)};
+    const lo=[.34,.42,.2],md=[.62,.74,.38],hi=[.95,1,.62];quad(P[0],P[1],P[2],P[3],lo,md);
+    blades.push(...P[3],...P[2],tx,h,tz, ...P[2],...P[3],tx,h,tz);for(let k=0;k<2;k++)cl.push(...md,...md,...hi)}
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(blades,3));g.setAttribute('color',new THREE.Float32BufferAttribute(cl,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(new Array(blades.length/3).fill(0).flatMap(()=>[0,1,0]),3));
   const U={c:{value:new THREE.Vector3()},r:{value:50},t:{value:0}};
   const fade=m=>{m.onBeforeCompile=sh=>{sh.uniforms.uC=U.c;sh.uniforms.uR=U.r;sh.uniforms.uT=U.t;sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nuniform vec3 uC;uniform float uR,uT;').replace('#include <begin_vertex>','#include <begin_vertex>\n{vec4 wp=instanceMatrix*vec4(0.,0.,0.,1.);float d=distance(wp.xz,uC.xz);float k=smoothstep(uR,uR-14.,d);transformed*=k;transformed.x+=sin(uT*1.8+wp.x*.3+wp.z*.2)*.06*position.y;}')};return m};
   const gm=fade(new THREE.MeshLambertMaterial({vertexColors:true}));
   const fl=merge([col(new THREE.CylinderGeometry(.015,.015,.35,3).translate(0,.17,0),'#4f7a2c'),col(new THREE.IcosahedronGeometry(.08,0).translate(0,.37,0),'#ffffff')]);
   const pb=jitter(new THREE.DodecahedronGeometry(.22,0),.5,77);col(pb,'#8a877f');
-  const N=S.small?2800:4600,G=new THREE.InstancedMesh(g,gm,N),F=new THREE.InstancedMesh(fl,fade(new THREE.MeshLambertMaterial({vertexColors:true})),N/5|0),PB=new THREE.InstancedMesh(pb,fade(new THREE.MeshLambertMaterial({vertexColors:true})),N/8|0);
+  const N=S.small?3800:6400,G=new THREE.InstancedMesh(g,gm,N),F=new THREE.InstancedMesh(fl,fade(new THREE.MeshLambertMaterial({vertexColors:true})),N/5|0),PB=new THREE.InstancedMesh(pb,fade(new THREE.MeshLambertMaterial({vertexColors:true})),N/8|0);
   for(const m of[G,F,PB]){m.count=0;m.frustumCulled=false;m.receiveShadow=true;S.scene.add(m)}S.clutter={G,F,PB,U,lx:1e9,lz:1e9}}
 const FLC=['#f4e04d','#ffffff','#e05a8a','#9b7be0','#f08a3a'].map(c=>new THREE.Color(c));
-export function updateClutter(px,pz,t){const C=S.clutter;if(!C)return;const r=S.small?44:58;C.U.c.value.set(px,0,pz);C.U.t.value=t;C.U.r.value=r-4;if(Math.hypot(px-C.lx,pz-C.lz)<6)return;C.lx=px;C.lz=pz;const st=S.small?2.2:1.9;let g=0,f=0,b=0;const GN=C.G.instanceMatrix.count,FN=C.F.instanceMatrix.count,BN2=C.PB.instanceMatrix.count;
+export function updateClutter(px,pz,t){const C=S.clutter;if(!C)return;const r=S.small?44:58;C.U.c.value.set(px,0,pz);C.U.t.value=t;C.U.r.value=r-4;if(Math.hypot(px-C.lx,pz-C.lz)<6)return;C.lx=px;C.lz=pz;const st=S.small?1.85:1.6;let g=0,f=0,b=0;const GN=C.G.instanceMatrix.count,FN=C.F.instanceMatrix.count,BN2=C.PB.instanceMatrix.count;
   const i0=Math.floor((px-r)/st),i1=Math.floor((px+r)/st),j0=Math.floor((pz-r)/st),j1=Math.floor((pz+r)/st);
   for(let j=j0;j<=j1;j++)for(let i=i0;i<=i1;i++){let h=Math.imul(i,73856093)^Math.imul(j,19349663);h=Math.imul(h^(h>>>13),1274126177);const u=((h>>>0)%1000)/1000,v=(((h>>>10)>>>0)%1000)/1000,w=(((h>>>20)>>>0)%1000)/1000;
     const x=i*st+u*st,z=j*st+v*st;if((x-px)**2+(z-pz)**2>r*r)continue;const y=groundAt(x,z);if(y<1||y>95||onCastle(x,z))continue;
-    if(w<.72&&g<GN){q.setFromAxisAngle(UP,u*6.28);m4.compose(vp.set(x,y-.03,z),q,vs.setScalar(.8+v*.9));C.G.setMatrixAt(g,m4);const gc=groundCol(x,z,y,0);tc.setRGB(gc[0]*1.05,gc[1]*1.15,gc[2]*.9);C.G.setColorAt(g++,tc)}
+    if(w<.74&&g<GN){q.setFromAxisAngle(UP,u*6.28);m4.compose(vp.set(x,y-.03,z),q,vs.set(.9+v*.6,.75+v*1.1+(w<.1?.7:0),.9+v*.6));C.G.setMatrixAt(g,m4);const gc=groundCol(x,z,y,0);tc.setRGB(gc[0]*1.05,gc[1]*1.15,gc[2]*.9);C.G.setColorAt(g++,tc)}
     else if(w<.77&&f<FN){q.setFromAxisAngle(UP,v*6.28);m4.compose(vp.set(x,y,z),q,vs.setScalar(.8+u*.6));C.F.setMatrixAt(f,m4);C.F.setColorAt(f++,FLC[(h>>>5)%5])}
     else if(w>.985&&b<BN2){q.setFromAxisAngle(UP,u*6.28);m4.compose(vp.set(x,y-.06,z),q,vs.setScalar(.6+v*1.4));C.PB.setMatrixAt(b++,m4)}}
   vs.set(1,1,1);C.G.count=g;C.F.count=f;C.PB.count=b;for(const m of[C.G,C.F,C.PB]){m.instanceMatrix.needsUpdate=true;if(m.instanceColor)m.instanceColor.needsUpdate=true}}
@@ -159,15 +185,16 @@ const onCastle=(x,z)=>{for(const c of CASTLES)if(Math.abs(x-c.x)<CW+3&&Math.abs(
 
 // ---------- castles ----------
 export const CW=16;     // half the width of a castle's walls
-function brickTex(){const c=document.createElement('canvas');c.width=c.height=256;const g=c.getContext('2d');g.fillStyle='#6d675d';g.fillRect(0,0,256,256);let s=5;const R=()=>(s=(s*16807)%2147483647)/2147483647;
+const CSY=.8;          // castles are drawn a fifth lower than they were modelled
+export function brickTex(){const c=document.createElement('canvas');c.width=c.height=256;const g=c.getContext('2d');g.fillStyle='#6d675d';g.fillRect(0,0,256,256);let s=5;const R=()=>(s=(s*16807)%2147483647)/2147483647;
   for(let r=0;r<8;r++)for(let k=0;k<6;k++){const x=k*52+(r%2)*26-26,y=r*32;const v=150+R()*55,t=R()*14-7;g.fillStyle=`rgb(${v+t},${v-2},${v-10-t})`;g.fillRect(x+2,y+2,48,28);
     g.fillStyle='rgba(255,255,255,.08)';g.fillRect(x+2,y+2,48,4);g.fillStyle='rgba(0,0,0,.12)';g.fillRect(x+2,y+26,48,4);for(let d=0;d<6;d++){g.fillStyle=`rgba(0,0,0,${R()*.1})`;g.fillRect(x+2+R()*44,y+2+R()*24,2+R()*5,2+R()*4)}}
   const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=8;return t}
 // a box whose bricks stay brick-sized whatever the box's size
-function tbox(w,h,d,c){const g=new THREE.BoxGeometry(w,h,d),uv=g.attributes.uv,dims=[[d,h],[d,h],[w,d],[w,d],[w,h],[w,h]];for(let f=0;f<6;f++)for(let k=0;k<4;k++){const i=f*4+k;uv.setXY(i,uv.getX(i)*dims[f][0]/2.6,uv.getY(i)*dims[f][1]/2.6)}return col(g,c||'#ffffff')}
-function tcyl(r1,r2,h,n,c,open){const g=new THREE.CylinderGeometry(r1,r2,h,n,1,!!open),uv=g.attributes.uv;for(let i=0;i<uv.count;i++)uv.setXY(i,uv.getX(i)*6.283*r1/2.6,uv.getY(i)*h/2.6);return col(g,c||'#ffffff')}
+export function tbox(w,h,d,c){const g=new THREE.BoxGeometry(w,h,d),uv=g.attributes.uv,dims=[[d,h],[d,h],[w,d],[w,d],[w,h],[w,h]];for(let f=0;f<6;f++)for(let k=0;k<4;k++){const i=f*4+k;uv.setXY(i,uv.getX(i)*dims[f][0]/2.6,uv.getY(i)*dims[f][1]/2.6)}return col(g,c||'#ffffff')}
+export function tcyl(r1,r2,h,n,c,open){const g=new THREE.CylinderGeometry(r1,r2,h,n,1,!!open),uv=g.attributes.uv;for(let i=0;i<uv.count;i++)uv.setXY(i,uv.getX(i)*6.283*r1/2.6,uv.getY(i)*h/2.6);return col(g,c||'#ffffff')}
 // three kinds of castle: round towers and a square keep; square towers and a round keep in warm sandstone; tall dark walls with eight-sided towers
-export function makeCastles(){const tex=brickTex(),stoneM=new THREE.MeshLambertMaterial({map:tex,vertexColors:true}),list=[];
+export function makeCastles(){const tex=brickTex(),stoneM=seeThrough(new THREE.MeshLambertMaterial({map:tex,vertexColors:true}),'stone'),list=[];
   for(const C of CASTLES){const v=C.k%3,lower=[],upper=[],roof=[],segs=[],L=CW,H=v===2?8.5:7,T=1.8,c=Math.cos(C.a),s=Math.sin(C.a);
     const ST=['#ffffff','#f2dfbd','#b9bcc8'][v],CAP=['#e8e4dc','#fff0d0','#d0d2dc'][v];
     const W=(x,z)=>({x:C.x+x*c+z*s,z:C.z-x*s+z*c});const add=(arr,g,x,y,z,ry)=>{if(ry)g.rotateY(ry);g.translate(x,y,z);arr.push(g)};
@@ -202,11 +229,11 @@ export function makeCastles(){const tex=brickTex(),stoneM=new THREE.MeshLambertM
     {const wl=tcyl(1.1,1.2,1,12,ST);wl.translate(-9,.5,-10);lower.push(wl);const hb=new THREE.CylinderGeometry(1.2,1.4,1.6,10);hb.translate(-11.5,.8,1.5);lower.push(col(hb,'#c9a84a'))}
     {const rf=new THREE.BoxGeometry(4,.2,16);rf.rotateZ(.25);rf.translate(L-2.6,4.2,-2);upper.push(col(rf,'#7a5634'));for(const z of[-9.5,-2,5.5]){const pst=new THREE.CylinderGeometry(.12,.12,3.6,5);pst.translate(L-4.4,1.8,z);lower.push(col(pst,'#5a3f22'))}}
     const rub=[];let rs=C.k*31+7;const R=()=>(rs=(rs*16807)%2147483647)/2147483647;for(let k=0;k<26;k++){const a=R()*6.283,r=R()*L,g=new THREE.DodecahedronGeometry(.8+R()*1.6,0);g.translate(Math.cos(a)*r,.4+R()*.6,Math.sin(a)*r);rub.push(col(g,'#8a847a'))}
-    const mk=(arr,mat)=>{const g=merge(arr,true);const m=new THREE.Mesh(g,mat);m.position.set(C.x,C.y-.3,C.z);m.rotation.y=C.a;m.castShadow=m.receiveShadow=true;S.scene.add(m);return m};
-    const lo=mk(lower,stoneM),up=mk(upper,stoneM),rm=new THREE.MeshLambertMaterial({vertexColors:true,color:'#9a9a9a'}),ro=mk(roof,rm),ru=mk(rub,new THREE.MeshLambertMaterial({vertexColors:true}));ru.visible=false;
+    const mk=(arr,mat)=>{const g=merge(arr,true);const m=new THREE.Mesh(g,mat);m.position.set(C.x,C.y-.3,C.z);m.rotation.y=C.a;m.scale.y=CSY;m.castShadow=m.receiveShadow=true;S.scene.add(m);return m};
+    const lo=mk(lower,stoneM),up=mk(upper,stoneM),rm=new THREE.MeshLambertMaterial({vertexColors:true,color:'#9a9a9a'}),ro=mk(roof,seeThrough(rm,'roof')),ru=mk(rub,new THREE.MeshLambertMaterial({vertexColors:true}));ru.visible=false;
     const gate=W(0,L+5),yard=W(0,6),ch=W(-8.5,8),stable=[0,1,2,3,4].map(i=>{const w=W(L-4.2,-9+i*3.6);return{x:w.x,z:w.z,a:C.a-Math.PI/2}});
     up.userData.m0=stoneM;lo.userData.m0=stoneM;
-    list.push({...C,lo,up,ro,ru,rm,segs,gate,yard,W,v,tops:tops.map(t=>{const w=W(t.x,t.z);return{x:w.x,y:C.y-.3+t.y,z:w.z}}),chest:{x:ch.x,z:ch.z,a:C.a},stable})}
+    list.push({...C,lo,up,ro,ru,rm,segs,gate,yard,W,v,tops:tops.map(t=>{const w=W(t.x,t.z);return{x:w.x,y:C.y-.3+t.y*CSY,z:w.z}}),chest:{x:ch.x,z:ch.z,a:C.a},stable})}
   // the treasure chests, one in each castle yard, and the gold heaped in them
   const body=merge([col(new THREE.BoxGeometry(1.3,.75,.85).translate(0,.375,0),'#7a4f2a'),col(new THREE.BoxGeometry(1.36,.1,.9).translate(0,.2,0),'#c9a640'),col(new THREE.BoxGeometry(1.36,.1,.9).translate(0,.6,0),'#c9a640')]);
   const lid=merge([col(new THREE.CylinderGeometry(.43,.43,1.3,8,1,false,0,Math.PI).rotateZ(Math.PI/2).rotateX(Math.PI/2),'#86592f'),col(new THREE.BoxGeometry(.14,.2,.2).translate(0,.1,.42),'#d9b24a')]);
@@ -218,9 +245,9 @@ export function drawChests(gold){const {CB,CL,CG}=S.chestM;let g=0;S.castles.for
   const open=gold[i]>0;const lm=new THREE.Matrix4().makeTranslation(0,.75,-.43).multiply(new THREE.Matrix4().makeRotationX(open?-1.9:0)).multiply(new THREE.Matrix4().makeTranslation(0,0,.43));     /* the lid swings back on its hinge */CL.setMatrixAt(i,m4.clone().multiply(lm));if(open)CG.setMatrixAt(g++,m4)});
   CG.count=g;for(const m of[CB,CL,CG])m.instanceMatrix.needsUpdate=true}
 // f: 1 solid .. ~.15 nearly clear (the walls and roofs between the camera and the commander)
-export function castleFade(k,f){const c=S.castles[k];if(!c.upT){c.upT=c.up.material.clone();c.upT.transparent=true;c.upT.depthWrite=false;c.roT=c.rm.clone();c.roT.transparent=true;c.roT.depthWrite=false;c.loT=c.upT}
+export function castleFade(k,f){return;const c=S.castles[k];if(!c.upT){c.upT=c.up.material.clone();c.upT.transparent=true;c.upT.depthWrite=false;c.roT=c.rm.clone();c.roT.transparent=true;c.roT.depthWrite=false;c.loT=c.upT}
   const see=f<.97;c.up.material=see?c.upT:c.up.userData.m0;c.ro.material=see?c.roT:c.rm;c.upT.opacity=f;c.roT.opacity=f;c.roT.color.copy(c.rm.color);c.up.castShadow=true}
-export function castleLook(k,colr,ruined){const c=S.castles[k];c.rm.color.copy(colr);c.up.visible=!ruined;c.ro.visible=!ruined;c.ru.visible=!!ruined;c.lo.scale.y=ruined?.55:1}
+export function castleLook(k,colr,ruined){const c=S.castles[k];c.rm.color.copy(colr);c.up.visible=!ruined;c.ro.visible=!ruined;c.ru.visible=!!ruined;c.lo.scale.y=(ruined?.55:1)*CSY}
 
 // ---------- the closing ring: four tall shimmering walls that close in from the edges of the map ----------
 export function makeZone(){const g=new THREE.PlaneGeometry(1,1);g.translate(0,.5,0);

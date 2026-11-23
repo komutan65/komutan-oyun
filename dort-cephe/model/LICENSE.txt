@@ -11,3 +11,7 @@
 - at.bin (the horse, baked into animation frames with a saddle and the rider's legs added):
   Horse from "Farm Animals Pack" by Quaternius (quaternius.com)
   License: Creative Commons Zero (CC0) - http://creativecommons.org/publicdomain/zero/1.0/
+
+- esya.bin (the old collapsed building, barrel and crate) and hexagons_medieval.png:
+  from "KayKit - Medieval Hexagon Pack" by Kay Lousberg (kaylousberg.com)
+  License: Creative Commons Zero (CC0) - http://creativecommons.org/publicdomain/zero/1.0/
