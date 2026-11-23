@@ -11,25 +11,28 @@ export function placeSun(x,y,z){const sun=S.sun,tex=210/sun.shadow.mapSize.x;SP.
   SP.copy(SU).multiplyScalar(a).addScaledVector(SV,b).addScaledVector(SUN_D,c);sun.target.position.copy(SP);sun.position.copy(SP).addScaledVector(SUN_D,330);sun.target.updateMatrixWorld()}
 export function makeScene(cv,small){
   const renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true,powerPreference:'high-performance'});
-  renderer.setPixelRatio(Math.min(devicePixelRatio||1,small?1.6:1.75));renderer.setSize(innerWidth,innerHeight,false);
+  renderer.setPixelRatio(Math.min(devicePixelRatio||1,small?1.85:2));renderer.setSize(innerWidth,innerHeight,false);
   renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFShadowMap;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.08;
   const scene=new THREE.Scene(),SKY=new THREE.Color('#c3d8e6');scene.background=SKY;scene.fog=new THREE.Fog(SKY,small?620:820,small?2300:2900);
   const camera=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,.5,3400);
   scene.add(new THREE.HemisphereLight('#dfeaff','#4f5f35',1.0));
   const sun=new THREE.DirectionalLight('#fff0d6',2.5);sun.position.set(-120,180,90);sun.castShadow=true;const sz=2048;sun.shadow.mapSize.set(sz,sz);
-  const sc=sun.shadow.camera;sc.left=-105;sc.right=105;sc.top=105;sc.bottom=-105;sc.near=10;sc.far=700;sun.shadow.bias=-.0004;sun.shadow.normalBias=.32;sun.shadow.radius=2.5;scene.add(sun,sun.target);
+  const sc=sun.shadow.camera;sc.left=-105;sc.right=105;sc.top=105;sc.bottom=-105;sc.near=10;sc.far=700;sun.shadow.bias=-.0004;sun.shadow.normalBias=.32;scene.add(sun,sun.target);
   const fill=new THREE.DirectionalLight('#a9c0ff',.38);fill.position.set(120,60,-100);scene.add(fill);
   // sky dome with a soft sun and a few painted clouds
-  {const g=new THREE.SphereGeometry(3200,32,16),m=new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,fog:false,uniforms:{sd:{value:new THREE.Vector3(-120,180,90).normalize()}},
+  {const g=new THREE.SphereGeometry(3200,32,16),m=new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,fog:false,uniforms:{sd:{value:new THREE.Vector3(-120,180,90).normalize()},uT:{value:0}},
     vertexShader:'varying vec3 vP;void main(){vP=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-    fragmentShader:`uniform vec3 sd;varying vec3 vP;
+    fragmentShader:`uniform vec3 sd;uniform float uT;varying vec3 vP;
       float h2(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
       float n2(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h2(i),h2(i+vec2(1,0)),f.x),mix(h2(i+vec2(0,1)),h2(i+vec2(1,1)),f.x),f.y);}
-      void main(){vec3 d=normalize(vP);float h=d.y;vec3 c=mix(vec3(.76,.85,.91),vec3(.3,.53,.82),smoothstep(.0,.5,h));c=mix(c,vec3(.8,.84,.82),smoothstep(.03,-.15,h));
-        float s=max(dot(d,sd),0.);c+=vec3(1.,.9,.7)*(pow(s,600.)*2.5+pow(s,12.)*.18);
-        if(h>.02){vec2 uv=d.xz/(h+.12)*2.2;float cl=n2(uv)*.6+n2(uv*2.3)*.3+n2(uv*5.1)*.1;cl=smoothstep(.55,.85,cl)*smoothstep(.02,.18,h);c=mix(c,vec3(1.,.99,.97),cl*.75);}
+      float fb(vec2 p){float v=0.,a=.5;for(int i=0;i<5;i++){v+=a*n2(p);p=p*2.07+vec2(5.3,1.7);a*=.5;}return v;}
+      void main(){vec3 d=normalize(vP);float h=d.y;vec3 c=mix(vec3(.78,.86,.92),vec3(.26,.5,.84),smoothstep(.0,.55,h));c=mix(c,vec3(.765,.847,.902),smoothstep(.06,-.04,h));
+        float s=max(dot(d,sd),0.);c+=vec3(1.,.88,.66)*(pow(s,800.)*3.+pow(s,40.)*.25+pow(s,6.)*.07);
+        if(h>.0){vec2 uv=d.xz/(h+.1)*1.6+vec2(uT*.004,uT*.0016);float cl=fb(uv),cov=smoothstep(.5,.78,cl)*smoothstep(.0,.16,h);
+          float lit=clamp(fb(uv+sd.xz*.08)-cl+.5,0.,1.);vec3 cc=mix(vec3(.62,.66,.74),vec3(1.,.98,.95),lit);cc+=vec3(1.,.85,.6)*pow(s,8.)*.35;
+          c=mix(c,cc,cov*.88);}
         gl_FragColor=vec4(c,1.);\n#include <colorspace_fragment>\n}`});
-   const sky=new THREE.Mesh(g,m);sky.renderOrder=-10;scene.add(sky);S.sky=sky}
+   const sky=new THREE.Mesh(g,m);sky.renderOrder=-10;scene.add(sky);S.sky=sky;S.skyT=m.uniforms.uT}
   Object.assign(S,{renderer,scene,camera,sun,small,SKY});
   return S}
 
@@ -45,13 +48,14 @@ function detailTex(){const c=document.createElement('canvas');c.width=c.height=2
   for(let j=0;j<256;j++)for(let i=0;i<256;i++){const k=(j*256+i)*4,v=212+R()*38+Math.sin(i*.09+Math.sin(j*.05)*2)*6;id.data[k]=v;id.data[k+1]=v;id.data[k+2]=v;id.data[k+3]=255}g.putImageData(id,0,0);
   for(let k=0;k<2600;k++){const x=R()*256,y=R()*256,l=2+R()*5,a=-1.57+(R()-.5)*.9,b=R()<.5;g.strokeStyle=b?`rgba(255,255,230,${.1+R()*.12})`:`rgba(40,50,20,${.08+R()*.1})`;g.lineWidth=.8+R();g.beginPath();g.moveTo(x,y);g.lineTo(x+Math.cos(a)*l,y+Math.sin(a)*l);g.stroke()}
   const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=8;return t}
-function groundMat(tex,far){const m=new THREE.MeshLambertMaterial({vertexColors:true,map:tex});const U=far?{c:{value:new THREE.Vector2()},r:{value:0}}:null;
+const CMASKD=new Uint8Array(400),CMASK=new THREE.DataTexture(CMASKD,20,20,THREE.RedFormat);CMASK.magFilter=CMASK.minFilter=THREE.NearestFilter;CMASK.needsUpdate=true;
+function groundMat(tex,far){const m=new THREE.MeshLambertMaterial({vertexColors:true,map:tex});const U=far?{c:{value:new THREE.Vector2()},r:{value:0},mask:{value:CMASK}}:null;
   m.onBeforeCompile=sh=>{
     // the grain at two scales, so no tiling shows; far from the eye it fades to the plain colour
-    sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec2 vW;varying float vD;').replace('#include <begin_vertex>','#include <begin_vertex>\nvW=(modelMatrix*vec4(position,1.)).xz;vD=-(modelViewMatrix*vec4(position,1.)).z;');
-    let f=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying vec2 vW;varying float vD;'+(far?'uniform vec2 uC;uniform float uR;':''))
-      .replace('#include <map_fragment>','{vec4 a=texture2D(map,vW/6.);vec4 b=texture2D(map,vW/41.+.37);vec3 t=a.rgb*b.rgb*1.18;diffuseColor.rgb*=mix(t,vec3(.93),smoothstep(120.,520.,vD));}');
-    if(far){sh.uniforms.uC=U.c;sh.uniforms.uR=U.r;f=f.replace('void main() {','void main() {\nif(max(abs(vW.x-uC.x),abs(vW.y-uC.y))<uR)discard;')}
+    sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec2 vW;varying float vD;varying float vY;varying float vNy;').replace('#include <begin_vertex>','#include <begin_vertex>\nvW=(modelMatrix*vec4(position,1.)).xz;vY=position.y;vNy=normal.y;vD=-(modelViewMatrix*vec4(position,1.)).z;');
+    let f=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying vec2 vW;varying float vD;varying float vY;varying float vNy;'+(far?'uniform vec2 uC;uniform float uR;uniform sampler2D uMask;':''))
+      .replace('#include <map_fragment>','{vec4 a=texture2D(map,vW/6.);vec4 b=texture2D(map,vW/41.+.37);vec4 m2=texture2D(map,vW/230.+.71);vec3 t=a.rgb*b.rgb*1.18;diffuseColor.rgb*=mix(t,vec3(.93),smoothstep(140.,620.,vD));diffuseColor.rgb*=.82+.36*m2.r;\n float rk=1.-smoothstep(.62,.86,vNy);if(rk>0.){float st=smoothstep(.2,.8,.5+.5*sin(vY*.8+b.g*7.+m2.r*5.));vec3 rc=mix(vec3(.5,.48,.44),vec3(.6,.58,.54),st)*(.8+.4*a.r);diffuseColor.rgb=mix(diffuseColor.rgb,rc,rk*.55);}}');
+    if(far){sh.uniforms.uC=U.c;sh.uniforms.uR=U.r;sh.uniforms.uMask=U.mask;f=f.replace('void main() {','void main() {\nif(texture2D(uMask,(vW+HALF_)/(2.*HALF_)).r>.5)discard;').replace('#include <common>','#include <common>\nconst float HALF_='+HALF.toFixed(1)+';')}
     sh.fragmentShader=f};
   return{m,U}}
 function groundGeo(x0,z0,size,n,useGrid){const st=size/n,N=n+1,H=new Float32Array((N+2)*(N+2));
@@ -64,7 +68,10 @@ function groundGeo(x0,z0,size,n,useGrid){const st=size/n,N=n+1,H=new Float32Arra
 const CHUNK=120,CN=HALF*2/CHUNK,NEAR=2;
 export function makeGround(){const {scene,small}=S,tex=detailTex();
   const near=groundMat(tex,false),far=groundMat(tex,true);
-  const fm=new THREE.Mesh(groundGeo(-HALF-60,-HALF-60,HALF*2+120,small?220:270),far.m);scene.add(fm);
+  const fm=new THREE.Mesh(groundGeo(-HALF-60,-HALF-60,HALF*2+120,small?220:270),far.m);
+  // the far land sits a little lower and is pushed back in depth, so where near ground is drawn it always wins:
+  // no flickering stripes where the two meet (they showed up in shadows as 'shadows coming and going')
+  fm.position.y=-.7;far.m.polygonOffset=true;far.m.polygonOffsetFactor=4;far.m.polygonOffsetUnits=8;scene.add(fm);
   S.ground={mat:near.m,U:far.U,chunks:new Map(),queue:[],cx:null,cz:null};
   const nc=document.createElement('canvas');nc.width=nc.height=128;{const g=nc.getContext('2d'),id=g.createImageData(128,128);for(let j=0;j<128;j++)for(let i=0;i<128;i++){const a=Math.sin(i/128*6.283*3+Math.sin(j/128*6.283*2)*1.3),b=Math.sin(j/128*6.283*4+Math.sin(i/128*6.283*3)*1.1),k=(j*128+i)*4;id.data[k]=128+a*38;id.data[k+1]=128+b*38;id.data[k+2]=255;id.data[k+3]=255}g.putImageData(id,0,0)}
   const nt=new THREE.CanvasTexture(nc);nt.wrapS=nt.wrapT=THREE.RepeatWrapping;nt.repeat.set(160,160);
@@ -77,14 +84,16 @@ export function makeGround(){const {scene,small}=S,tex=detailTex();
     sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vWp;').replace('#include <worldpos_vertex>','#include <worldpos_vertex>\nvWp=(modelMatrix*vec4(transformed,1.)).xyz;');
     sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vWp;uniform sampler2D uDep;uniform float uT,uHalf;')
       .replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\n{vec3 n2=texture2D(normalMap,vWp.xz/23.+vec2(-uT*.011,uT*.007)).xyz*2.-1.;normal=normalize(normal+vec3(n2.x,0.,n2.y)*.18);}')
-      .replace('#include <color_fragment>','#include <color_fragment>\n{vec2 uv=(vWp.xz+uHalf)/(2.*uHalf);float d=texture2D(uDep,uv).r*255./28.-1.5;d=clamp(d,0.,30.);\n vec3 shal=vec3(.25,.62,.62),mid=vec3(.09,.36,.52),deep=vec3(.04,.17,.33);vec3 c=mix(shal,mid,smoothstep(.0,2.5,d));c=mix(c,deep,smoothstep(2.5,12.,d));\n float fo=(1.-smoothstep(.05,.7,d))*(.6+.4*sin(vWp.x*.9+vWp.z*.7+uT*2.));diffuseColor.rgb=mix(c,vec3(.95,.98,1.),fo*.75);diffuseColor.a=mix(.62,.93,smoothstep(.0,3.,d))+fo*.2;}')};
+      .replace('#include <color_fragment>','#include <color_fragment>\n{vec2 uv=(vWp.xz+uHalf)/(2.*uHalf);float d=texture2D(uDep,uv).r*255./28.-1.5;d=clamp(d,0.,30.);\n vec3 shal=vec3(.25,.62,.62),mid=vec3(.09,.36,.52),deep=vec3(.04,.17,.33);vec3 c=mix(shal,mid,smoothstep(.0,2.5,d));c=mix(c,deep,smoothstep(2.5,12.,d));\n float fo=(1.-smoothstep(.05,.7,d))*(.6+.4*sin(vWp.x*.9+vWp.z*.7+uT*2.));diffuseColor.rgb=mix(c,vec3(.95,.98,1.),fo*.75);diffuseColor.a=mix(.62,.93,smoothstep(.0,3.,d))+fo*.2;}')
+      // the sky mirrored at a glancing look across the water
+      .replace('#include <opaque_fragment>','{float fr=pow(1.-clamp(dot(normalize(vViewPosition),normal),0.,1.),3.);outgoingLight=mix(outgoingLight,vec3(.74,.84,.93),fr*.55);diffuseColor.a=max(diffuseColor.a,fr*.9);}\n#include <opaque_fragment>')};
   const w=new THREE.Mesh(new THREE.PlaneGeometry(HALF*2+800,HALF*2+800).rotateX(-Math.PI/2),wm);w.position.y=0;w.renderOrder=1;scene.add(w);S.water=w}
 export function updateGround(px,pz){const G=S.ground,cx=Math.floor((px+HALF)/CHUNK),cz=Math.floor((pz+HALF)/CHUNK);
   if(cx!==G.cx||cz!==G.cz){G.cx=cx;G.cz=cz;const want=new Set();
     for(let j=cz-NEAR;j<=cz+NEAR;j++)for(let i=cx-NEAR;i<=cx+NEAR;i++){if(i<0||j<0||i>=CN||j>=CN)continue;const k=i+j*CN;want.add(k);if(!G.chunks.has(k)&&!G.queue.includes(k))G.queue.push(k)}
-    for(const[k,m]of G.chunks)if(!want.has(k)){S.scene.remove(m);m.geometry.dispose();G.chunks.delete(k)}
+    for(const[k,m]of G.chunks)if(!want.has(k)){S.scene.remove(m);m.geometry.dispose();G.chunks.delete(k);CMASKD[k]=0;CMASK.needsUpdate=true}
     G.queue=G.queue.filter(k=>want.has(k)).sort((a,b)=>Math.hypot(a%CN-cx,(a/CN|0)-cz)-Math.hypot(b%CN-cx,(b/CN|0)-cz))}
-  let built=0;while(G.queue.length&&built<(G.chunks.size<9?9:1)){const k=G.queue.shift(),i=k%CN,j=k/CN|0;const m=new THREE.Mesh(groundGeo(-HALF+i*CHUNK,-HALF+j*CHUNK,CHUNK,CHUNK/ST,true),G.mat);m.receiveShadow=true;S.scene.add(m);G.chunks.set(k,m);built++}
+  let built=0;while(G.queue.length&&built<(G.chunks.size<9?9:1)){const k=G.queue.shift(),i=k%CN,j=k/CN|0;const m=new THREE.Mesh(groundGeo(-HALF+i*CHUNK,-HALF+j*CHUNK,CHUNK,CHUNK/ST,true),G.mat);m.receiveShadow=true;S.scene.add(m);G.chunks.set(k,m);CMASKD[k]=255;CMASK.needsUpdate=true;built++}
   let all=true;for(let j=cz-NEAR;j<=cz+NEAR&&all;j++)for(let i=cx-NEAR;i<=cx+NEAR;i++){if(i<0||j<0||i>=CN||j>=CN)continue;if(!G.chunks.has(i+j*CN)){all=false;break}}
   if(all){G.U.c.value.set(-HALF+(cx+.5)*CHUNK,-HALF+(cz+.5)*CHUNK);G.U.r.value=(NEAR+.5)*CHUNK-3}else G.U.r.value=0}
 
@@ -136,7 +145,9 @@ function swayMat(){const m=new THREE.MeshLambertMaterial({vertexColors:true});co
 const NEAR_T=230,ROCK_R=420,FAR_T=S_FAR();function S_FAR(){return S.small?950:1150}
 export function makeNodes(){const geos=nodeGeos(),mat=swayMat(),rmat=new THREE.MeshLambertMaterial({vertexColors:true}),small=S.small;
   const list=[],BK=40,BN=HALF*2/BK,B=Array.from({length:BN*BN},()=>[]);
-  for(let i=0;i<NC;i++)for(let j=0;j<NC;j++){const n=nodeAt(i,j);if(!n)continue;n.y=groundAt(n.x,n.z);n.i=list.length;list.push(n);B[clamp(Math.floor((n.x+HALF)/BK),0,BN-1)+clamp(Math.floor((n.z+HALF)/BK),0,BN-1)*BN].push(n)}
+  for(let i=0;i<NC;i++)for(let j=0;j<NC;j++){const n=nodeAt(i,j);if(!n)continue;n.y=groundAt(n.x,n.z);
+    // stones and bushes settle into a slope: set at the lowest ground under their edge, so the downhill side never floats
+    if(n.t>=2){const r=(n.t===5?.9:1.5)*n.s*1.1;n.y=Math.min(n.y,groundAt(n.x+r,n.z),groundAt(n.x-r,n.z),groundAt(n.x,n.z+r),groundAt(n.x,n.z-r))+.05}n.i=list.length;list.push(n);B[clamp(Math.floor((n.x+HALF)/BK),0,BN-1)+clamp(Math.floor((n.z+HALF)/BK),0,BN-1)*BN].push(n)}
   const cnt=[0,0,0,0,0,0];for(const n of list)cnt[n.t]++;
   // 0 pine near, 1 oak near, 2 rock, 3 iron, 4 gold, 5 bush (all of them, always), 6 stump, 7 pine far, 8 oak far; 9.. near copies that cast shadows
   const caps=[small?900:1400,small?1700:2600,cnt[2],cnt[3],cnt[4],cnt[5],600,cnt[0],cnt[1]];

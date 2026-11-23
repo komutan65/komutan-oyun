@@ -25,12 +25,12 @@ export function makeSites(seed){const R=rng((seed^0x5eed1234)>>>0),out=[];let gu
     let spots;
     if(o.kind==='kale'){const L=8;
       // walls with a wide gate at the front and a breach in one side; four tower stumps at the corners
-      o.br=R()<.5?-1:1;seg(-L,-L,L,-L,.6);seg(-L,L,-3,L,.6);seg(3,L,L,L,.6);seg(o.br*L,-L,o.br*L,-1,.6);seg(o.br*L,2.6,o.br*L,L,.6);seg(-o.br*L,-L,-o.br*L,L,.6);
+      o.br=R()<.5?-1:1;seg(-L,-L,L,-L,.5);seg(-L,L,-4.2,L,.5);seg(4.2,L,L,L,.5);seg(o.br*L,-L,o.br*L,-2.2,.5);seg(o.br*L,3.8,o.br*L,L,.5);seg(-o.br*L,-L,-o.br*L,L,.5);
       for(const[x,z]of[[-L,-L],[L,-L],[-L,L],[L,L]])seg(x,z,x,z,2.1);
       o.gates.push({out:[0,L+3.5],in:[0,L-3]},{out:[o.br*(L+3.5),.8],in:[o.br*(L-3),.8]});
       spots=[[-L+2.4,-L+2.4,.8],[L-2.4,-L+2.4,-.8],[-o.br*(L-2.4),L-2.8,2.4],[0,-L+1.7,0]]}
     else if(o.kind==='ev'){const hw=4.6,hd=3.6;
-      seg(-hw,-hd,hw,-hd,.35);seg(-hw,-hd,-hw,hd,.35);seg(hw,-hd,hw,-.6,.35);seg(-hw,hd,-1.6,hd,.35);seg(1.6,hd,hw,hd,.35);
+      seg(-hw,-hd,hw,-hd,.35);seg(-hw,-hd,-hw,hd,.35);seg(hw,-hd,hw,-.6,.35);seg(-hw,hd,-2,hd,.35);seg(2,hd,hw,hd,.35);
       o.gates.push({out:[0,hd+3],in:[0,hd-1.8]},{out:[hw+3,1.6],in:[hw-1.8,1.6]});
       spots=[[-hw+1.3,-hd+1.2,.4],[hw-1.3,-hd+1.2,-.4],[-hw+1.3,hd-1.4,2.8]]}
     else if(o.kind==='harabe'){const p=o.W(.4,-.4);o.segs.push([p.x,p.z,p.x,p.z,4.2]);     // the heap of the old building is solid
@@ -70,13 +70,13 @@ const box=(w,h,d,x,y,z,c)=>col(new THREE.BoxGeometry(w,h,d).translate(x,y,z),c);
 function ruinWall(L,x1,z1,x2,z2,h0,h1,R,T=1){const len=Math.hypot(x2-x1,z2-z1),a=Math.atan2(x2-x1,z2-z1),n=Math.max(1,Math.round(len/2.2));
   for(let k=0;k<n;k++){const u=-len/2+(k+.5)*len/n,h=h0+(h1-h0)*R(),g=tbox(T,h,len/n+.02,R()<.5?'#ffffff':'#e4ddcf');g.rotateY(a);g.translate((x1+x2)/2+Math.sin(a)*u,h/2,(z1+z2)/2+Math.cos(a)*u);L.push(g)}}
 function fortGeo(br,R){const L=[],W=8;
-  ruinWall(L,-W,-W,W,-W,2.2,4.4,R);ruinWall(L,-W,W,-3,W,1.8,3.8,R);ruinWall(L,3,W,W,W,1.8,3.8,R);ruinWall(L,br*W,-W,br*W,-1,2,4,R);ruinWall(L,br*W,2.6,br*W,W,1.4,3.4,R);ruinWall(L,-br*W,-W,-br*W,W,2.4,4.6,R);
+  ruinWall(L,-W,-W,W,-W,2.2,4.4,R);ruinWall(L,-W,W,-4.2,W,1.8,3.8,R);ruinWall(L,4.2,W,W,W,1.8,3.8,R);ruinWall(L,br*W,-W,br*W,-2.2,2,4,R);ruinWall(L,br*W,3.8,br*W,W,1.4,3.4,R);ruinWall(L,-br*W,-W,-br*W,W,2.4,4.6,R);
   for(const[x,z]of[[-W,-W],[W,-W],[-W,W],[W,W]]){const h=3.5+R()*2.6;const t=tcyl(2,2.3,h,10,'#f0ece4');t.translate(x,h/2,z);L.push(t)}
-  for(const sd of[-1,1]){const p=tbox(1.3,4.4,1.3,'#ffffff');p.translate(sd*3.6,2.2,W);L.push(p)}
-  for(let k=0;k<12;k++){const g=new THREE.DodecahedronGeometry(.35+R()*.6,0);g.translate((R()-.5)*15,.2,(R()-.5)*15);L.push(col(g,'#9a948a'))}
+  for(const sd of[-1,1]){const p=tbox(1.3,4.4,1.3,'#ffffff');p.translate(sd*4.85,2.2,W);L.push(p)}
+  for(let k=0;k<12;k++){const g=new THREE.DodecahedronGeometry(.35+R()*.6,0);const sd=k%4,u=(R()-.5)*12;g.translate(sd===0?-W+1:sd===1?W-1:u,.2,sd===2?-W+1:sd===3?(u<0?-W+1:-W+1):u);L.push(col(g,'#9a948a'))}
   return merge(L,true)}
 function houseGeo(R){const L=[],hw=4.6,hd=3.6;
-  ruinWall(L,-hw,-hd,hw,-hd,1.6,3.2,R,.45);ruinWall(L,-hw,-hd,-hw,hd,1.2,3,R,.45);ruinWall(L,hw,-hd,hw,-.6,1.2,2.6,R,.45);ruinWall(L,-hw,hd,-1.6,hd,.8,2.4,R,.45);ruinWall(L,1.6,hd,hw,hd,.8,2.2,R,.45);
+  ruinWall(L,-hw,-hd,hw,-hd,1.6,3.2,R,.45);ruinWall(L,-hw,-hd,-hw,hd,1.2,3,R,.45);ruinWall(L,hw,-hd,hw,-.6,1.2,2.6,R,.45);ruinWall(L,-hw,hd,-2,hd,.8,2.4,R,.45);ruinWall(L,2,hd,hw,hd,.8,2.2,R,.45);
   for(let k=0;k<3;k++){const b=box(.28,.28,4+R()*2,(R()-.5)*5,.2+R()*.3,(R()-.5)*3,'#6b4a2e');b.rotateY((R()-.5)*1.5);L.push(b)}
   for(let k=0;k<7;k++){const g=new THREE.DodecahedronGeometry(.25+R()*.4,0);g.translate((R()-.5)*9,.15,(R()-.5)*7);L.push(col(g,'#a39c90'))}
   return merge(L,true)}

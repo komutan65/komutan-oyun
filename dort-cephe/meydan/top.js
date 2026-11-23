@@ -42,8 +42,11 @@ export function cannonsTick(dt,t){if(!T)return;
   for(let i=T.parts.length-1;i>=0;i--){const p=T.parts[i];p.t+=dt;if(p.t>p.life){T.parts.splice(i,1);continue}p.x+=p.vx*dt;p.y+=p.vy*dt;p.z+=p.vz*dt;if(p.k){p.vx*=1-dt*.8;p.vz*=1-dt*.8;p.vy=Math.max(.3,p.vy-dt*.5)}else{p.vy+=dt*1.5}}}
 // list: cannons to draw [{x,z,a,wh (wheel turn),hx,hz (where the shaft meets the horse, or null)}]
 export function cannonsDraw(list,t){if(!T)return;let b=0,w=0,sh=0;
-  for(const c of list){if(b>=CAP)break;const y=groundAt(c.x,c.z),fx=Math.sin(c.a)*1.2,fz=Math.cos(c.a)*1.2,pit=Math.atan2(groundAt(c.x-fx,c.z-fz)-groundAt(c.x+fx,c.z+fz),2.4);
-    q.setFromAxisAngle(UP,c.a);q2.setFromAxisAngle(XA,pit);q.multiply(q2);m4.compose(vp.set(c.x,y,c.z),q,vs.set(1,1,1));T.body.setMatrixAt(b++,m4);
+  for(const c of list){if(b>=CAP)break;
+    // it rests on its two wheels and the end of its trail: pitch and roll from the ground under them, eased so it never jerks
+    const sa=Math.sin(c.a),ca=Math.cos(c.a),wl=groundAt(c.x+ca*.7,c.z-sa*.7),wr=groundAt(c.x-ca*.7,c.z+sa*.7),tr=groundAt(c.x-sa*2.4,c.z-ca*2.4),wy=(wl+wr)/2;
+    const pit=Math.atan2(tr-wy,2.4)*.9,rol=Math.atan2(wl-wr,1.4),k=Math.min(1,.18);c.dp=(c.dp??pit)+(pit-(c.dp??pit))*k;c.dr=(c.dr??rol)+(rol-(c.dr??rol))*k;c.dy=(c.dy??wy)+(wy-(c.dy??wy))*.35;
+    q.setFromAxisAngle(UP,c.a);q2.setFromAxisAngle(XA,c.dp);q.multiply(q2);q2.setFromAxisAngle(ZA,c.dr);q.multiply(q2);const y=Math.max(c.dy,-1.1);m4.compose(vp.set(c.x,y,c.z),q,vs.set(1,1,1));T.body.setMatrixAt(b++,m4);
     for(const sd of[-1,1]){m5.compose(vp.set(sd*.68,.6,.15),q2.setFromAxisAngle(XA,c.wh||0),vs.set(1,1,1));T.wheel.setMatrixAt(w++,m5.premultiply(m4))}
     if(c.hx!=null){const dx=c.hx-c.x,dz=c.hz-c.z,L=Math.hypot(dx,dz);if(L>.5){q.setFromAxisAngle(UP,Math.atan2(dx,dz));const sx=c.x-Math.sin(c.a)*2.5,sz=c.z-Math.cos(c.a)*2.5,L2=Math.hypot(c.hx-sx,c.hz-sz);q.setFromAxisAngle(UP,Math.atan2(c.hx-sx,c.hz-sz));m5.compose(vp.set(sx,y+.4,sz),q,vs.set(1,1,Math.max(.2,L2-1.2)));T.shaft.setMatrixAt(sh++,m5)}}}
   T.body.count=b;T.wheel.count=w;T.shaft.count=sh;for(const m of[T.body,T.wheel,T.shaft])m.instanceMatrix.needsUpdate=true;
