@@ -8,6 +8,8 @@ function hash(i,j,s){let h=Math.imul(i,374761393)+Math.imul(j,668265263)+Math.im
 export function vnoise(x,z,s){const i=Math.floor(x),j=Math.floor(z),fx=x-i,fz=z-j,u=fx*fx*(3-2*fx),v=fz*fz*(3-2*fz);
   const a=hash(i,j,s),b=hash(i+1,j,s),c=hash(i,j+1,s),d=hash(i+1,j+1,s);return(a+(b-a)*u+(c-a)*v+(a-b-c+d)*u*v)*2-1}
 export function fbm(x,z,s,o=4){let t=0,a=1,n=0;for(let k=0;k<o;k++){t+=vnoise(x,z,s+k*31)*a;n+=a;a*=.5;x=x*2.03+17.1;z=z*2.03-9.7}return t/n}
+// soft ridges: rounded crests and broad valleys (no knife edges, no pits between them)
+function soft(x,z,s,o=4){let t=0,a=1,n=0;for(let k=0;k<o;k++){const v=vnoise(x,z,s+k*31),r=1-Math.sqrt(v*v+.02);t+=r*r*a;n+=a;a*=.48;x=x*2.03+5.3;z=z*2.03+11.9}return t/n/(1-Math.sqrt(.02))**2}
 function ridged(x,z,s,o=4){let t=0,a=1,n=0;for(let k=0;k<o;k++){const r=1-Math.abs(vnoise(x,z,s+k*31));t+=r*r*a;n+=a;a*=.5;x=x*2.07+5.3;z=z*2.07+11.9}return t/n}
 export const rng=seed=>{let a=seed>>>0;return()=>{a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}};
 const BOX=(x,z)=>{const a=Math.abs(x),b=Math.abs(z),m=Math.max(a,b,1),p=a/m,q=b/m;return m*Math.pow(p**8+q**8,1/8)};
@@ -23,8 +25,9 @@ export const richK=(x,z)=>fbm(x/300,z/300,9,2);         // rich ground: more iro
 function rawHeight(x,z){
   const e=edgeK(x,z),r=rangeK(x,z);
   let h=6+fbm(x/420,z/420,1,4)*15+fbm(x/95,z/95,2,3)*3.2;
-  const rg=ridged(x/220,z/220,4,4);h+=r*Math.pow(rg,1.6)*105;
-  h+=e*(55+ridged(x/150,z/150,5,4)*150);
+  // inland ranges: the crests are sharpened only a little, valleys between them stay open and smooth
+  const rg=soft(x/240+fbm(x/500,z/500,21,2)*.35,z/240,4,4);h+=r*Math.pow(rg,2.1)*112;
+  h+=e*(55+soft(x/165,z/165,5,4)*150);
   const lk=lakeK(x,z)*(1-e)*(1-r*.8);if(lk>0)h=lerp(h,-7,lk);
   return h}
 export{rawHeight}
@@ -82,7 +85,7 @@ export function nodeAt(ci,cj){
   const rocky=clamp(smooth(22,70,h)*.7+rk*.5+smooth(-.1,-.45,w)*.35+e*.4,0,1);
   const pt=.04+.72*forest,pr=.012+.09*rocky,pb=.012+.03*smooth(-.2,.3,w);
   let t=-1,q=r1;
-  if(q<pt){t=hash(ci,cj,404)<smooth(25,65,h)*.7+(1-smooth(-.2,.35,w))*.25?0:1}
+  if(q<pt){t=hash(ci,cj,404)<smooth(25,65,h)*.7+(1-smooth(-.2,.35,w))*.25?0:1;if(t===1&&(sl>.42||h>62))t=sl>.7?-1:0;if(t===0&&sl>.68)t=-1;if(t<0&&sl<1&&hash(ci,cj,909)<.35)t=2}
   else if((q-=pt)<pr){const rich=richK(x,z),rr=hash(ci,cj,505);t=2;
     if(rr<.12+rocky*.25+Math.max(0,rich)*.45)t=3;
     if(rich>.22&&rk>.2&&hash(ci,cj,606)<.3)t=4}

@@ -13,7 +13,7 @@ function chrMat(tex,V,cut){const m=new THREE.MeshStandardMaterial({color:'#fffff
   m.onBeforeCompile=sh=>{sh.uniforms.uT={value:0};m.userData.T=sh.uniforms.uT;if(cut)sh.uniforms.uCut=RIDER_CUT;
     sh.vertexShader=MIXV(sh).replace('#include <common>','#include <common>\nattribute float aTeam;attribute vec3 p2;attribute vec3 n2;attribute float aBl;attribute vec2 aLv;varying float vTeam;varying vec3 vTint;varying vec2 vLv;varying vec3 vObj;')
       .replace('vec3 transformed=mix(position,p2,aBl);','vec3 transformed=mix(position,p2,aBl);vTeam=aTeam;vLv=aLv;vObj=transformed;\n#ifdef USE_INSTANCING_COLOR\nvTint=instanceColor.rgb;\n#else\nvTint=vec3(1.);\n#endif\n');
-    sh.fragmentShader=sh.fragmentShader.replace('void main() {','void main() {'+(cut?'\nif(vObj.y<uCut)discard;':'')).replace('#include <common>','#include <common>\nuniform float uT;'+(cut?'uniform float uCut;':'')+'varying float vTeam;varying vec3 vTint;varying vec2 vLv;varying vec3 vObj;vec3 lvGlow=vec3(0.);')
+    sh.fragmentShader=sh.fragmentShader.replace('void main() {','void main() {'+(cut?'\nif(vObj.y<uCut)discard;':'')).replace('#include <common>','#include <common>\nuniform float uT;'+(cut?'uniform float uCut;':'')+'varying float vTeam;varying vec3 vTint;varying vec2 vLv;varying vec3 vObj;vec3 lvGlow=vec3(0.);vec2 wRM=vec2(-1.);float wpnK=0.;')
       .replace('#include <color_fragment>',`{vec3 tc=min(vTint,vec3(1.));float fl=max(0.,max(vTint.r,max(vTint.g,vTint.b))-1.);vec3 c=diffuseColor.rgb;float lum=dot(c,vec3(.3,.59,.11));
         float team=step(.5,vTeam)*step(vTeam,1.5),wpn=step(1.5,vTeam),sat=max(c.r,max(c.g,c.b))-min(c.r,min(c.g,c.b));
         c=mix(c,mix(vec3(lum),c,.25)*tc*1.9,team);
@@ -22,13 +22,20 @@ function chrMat(tex,V,cut){const m=new THREE.MeshStandardMaterial({color:'#fffff
         vec3 gold=vec3(1.,.78,.3)*(.55+lum*.9),steel=vec3(.86,.9,.97)*(.45+lum*.8);
         float a=vLv.y,w=vLv.x;
         vec3 ac=a<.5?c:a<1.5?mix(c,steel,.6):a<2.5?mix(steel,gold,step(.5,fract(vObj.y*3.))*.8):gold;c=mix(c,ac,metal);
-        // weapon level 1..10: plain, steel, bright steel, blued steel, gold, glowing gold, ruby-gold, and at 10 a white-violet radiance
-        vec3 blue=vec3(.55,.72,1.)*(.5+lum*.8),ruby=vec3(.95,.12,.16)*(.6+lum*.7),star=vec3(.72,.5,1.)*(.75+lum*.7);
-        vec3 wc=w<1.5?c:w<2.5?mix(c,steel,.55):w<3.5?steel:w<4.5?mix(steel,blue,.45):w<5.5?blue:w<6.5?mix(c,gold,.8):w<7.5?gold:w<8.5?gold*1.1:w<9.5?mix(gold,ruby,.75):star;c=mix(c,wc,wpn);
-        vec3 wg=w<4.5?vec3(0.):w<5.5?vec3(.3,.5,1.)*.18:w<7.5?vec3(1.,.7,.25)*.12:w<8.5?vec3(1.,.7,.25)*.3:w<9.5?vec3(1.,.15,.1)*.45:vec3(.7,.45,1.)*1.1;
+        // weapon level 1..10, from a rusty blade to a legend: 1 rust-spotted iron, 2 dull iron, 3 forged steel, 4 polished steel,
+        // 5 damascus (wavy folded steel), 6 blued steel, 7 steel inlaid with gold, 8 gold, 9 ruby and gold that pulses, 10 violet with running runes
+        vec3 blue=vec3(.42,.6,1.)*(.45+lum*.8),ruby=vec3(.95,.12,.16)*(.6+lum*.7),star=vec3(.72,.5,1.)*(.75+lum*.7);
+        float nz=fract(sin(dot(floor(vObj*14.),vec3(12.9898,78.233,37.719)))*43758.5453);
+        float dam=.5+.5*sin(vObj.y*46.+sin(vObj.x*31.+vObj.z*27.)*2.6);
+        float rune=step(.82,fract(vObj.y*9.-uT*.9))*step(.35,fract(vObj.x*7.+vObj.z*5.));
+        vec3 iron=vec3(.5,.5,.52)*(.5+lum*.6),rust=vec3(.45,.24,.12)*(.6+lum*.5);
+        vec3 wc=w<1.5?mix(iron,rust,step(.55,nz)*.85):w<2.5?iron:w<3.5?steel*.9:w<4.5?steel*1.08:w<5.5?mix(steel*.55,steel*1.1,dam):w<6.5?mix(blue,steel*1.1,step(.8,dam)):w<7.5?mix(steel,gold,step(.62,dam)):w<8.5?gold*1.12:w<9.5?mix(gold,ruby,.5+.25*dam):mix(star,vec3(1.,.95,1.),rune);
+        c=mix(c,wc,wpn);wpnK=wpn;
+        vec3 wg=w<5.5?vec3(0.):w<6.5?vec3(.25,.45,1.)*.12:w<7.5?vec3(1.,.7,.25)*.1:w<8.5?vec3(1.,.72,.28)*.28:w<9.5?vec3(1.,.15,.1)*(.35+.3*sin(uT*4.)):vec3(.7,.45,1.)*(.9+.6*rune);
+        wRM=vec2(w<1.5?.95:w<2.5?.8:w<3.5?.55:w<4.5?.28:w<5.5?.35:w<6.5?.3:w<7.5?.3:w<8.5?.22:.2,w<2.5?.15:.4);
         lvGlow=wpn*wg*(.6+.8*sh)+metal*step(2.5,a)*vec3(1.,.75,.3)*.12*sh;
         diffuseColor.rgb=mix(c,vec3(1.,.95,.9),clamp(fl,0.,.8));}`)
-      .replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\ntotalEmissiveRadiance+=lvGlow;').replace('#include <opaque_fragment>',RIM+'#include <opaque_fragment>')};
+      .replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nif(wRM.x>=0.)roughnessFactor=mix(roughnessFactor,wRM.x,wpnK);').replace('#include <metalnessmap_fragment>','#include <metalnessmap_fragment>\nif(wRM.x>=0.)metalnessFactor=mix(metalnessFactor,wRM.y,wpnK);').replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\ntotalEmissiveRadiance+=lvGlow;').replace('#include <opaque_fragment>',RIM+'#include <opaque_fragment>')};
   m.customProgramCacheKey=()=>cut?'chr-cut':'chr';return m}
 const DEPTH=new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking});DEPTH.onBeforeCompile=sh=>{sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nattribute vec3 p2;attribute float aBl;').replace('#include <begin_vertex>','vec3 transformed=mix(position,p2,aBl);')};
 const MATS=[];export function chrTime(t){for(const m of MATS)if(m.userData.T)m.userData.T.value=t}

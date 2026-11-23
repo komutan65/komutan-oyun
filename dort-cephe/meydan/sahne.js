@@ -7,7 +7,7 @@ export const S={};
 
 // the shadow box follows the player, stepped in whole shadow-map texels as seen from the sun, so shadow edges never crawl or flicker
 const SUN_D=new THREE.Vector3(-120,180,90).normalize(),SU=new THREE.Vector3().crossVectors(SUN_D,new THREE.Vector3(0,1,0)).normalize(),SV=new THREE.Vector3().crossVectors(SU,SUN_D).normalize(),SP=new THREE.Vector3();
-export function placeSun(x,y,z){const sun=S.sun,tex=210/sun.shadow.mapSize.x;SP.set(x,y,z);let a=SP.dot(SU),b=SP.dot(SV);const c=SP.dot(SUN_D);a=Math.round(a/tex)*tex;b=Math.round(b/tex)*tex;
+export function placeSun(x,y,z){const sun=S.sun,tex=210/sun.shadow.mapSize.x;SP.set(x,y,z);let a=SP.dot(SU),b=SP.dot(SV);const c=Math.round(SP.dot(SUN_D)/4)*4;a=Math.round(a/tex)*tex;b=Math.round(b/tex)*tex;
   SP.copy(SU).multiplyScalar(a).addScaledVector(SV,b).addScaledVector(SUN_D,c);sun.target.position.copy(SP);sun.position.copy(SP).addScaledVector(SUN_D,330);sun.target.updateMatrixWorld()}
 export function makeScene(cv,small){
   const renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true,powerPreference:'high-performance'});
@@ -125,13 +125,13 @@ export function nodeGeos(){
 // leaves sway in the wind (more at the top); the far copies too, so nothing jumps when they swap
 // the commander's place on screen (pixels), his depth and a radius: trees in front of him there dissolve
 export const FOC={value:new THREE.Vector4(-1e4,-1e4,0,1)};
-const DISS='{float k=smoothstep(5.,13.,vCamD);if(vCamD<uFoc.z-2.){float r=length(gl_FragCoord.xy-uFoc.xy)/uFoc.w;k=min(k,mix(.08,1.,smoothstep(.55,1.,r)));}if(k<.2)discard;if(k<1.&&fract(sin(dot(floor(gl_FragCoord.xy),vec2(12.9898,78.233)))*43758.5453)>k)discard;}';
+const DISS='{if(vCamD<NEARCUT)discard;if(vCamD<uFoc.z-2.){float r=length(gl_FragCoord.xy-uFoc.xy)/uFoc.w;if(r<.82)discard;if(r<1.){vec2 q=mod(floor(gl_FragCoord.xy),4.);float b=mod(q.x*8.+q.y*4.+q.x*q.y*2.+q.y,16.)/16.;if((r-.82)/.18<b)discard;}}}';
 export function seeThrough(m,key){const prev=m.onBeforeCompile;m.onBeforeCompile=(sh,r)=>{if(prev)prev(sh,r);sh.uniforms.uFoc=FOC;
-    sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying float vCamD;uniform vec4 uFoc;').replace('#include <clipping_planes_fragment>','#include <clipping_planes_fragment>\n'+DISS);
+    sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying float vCamD;uniform vec4 uFoc;').replace('#include <clipping_planes_fragment>','#include <clipping_planes_fragment>\n'+DISS.replace('NEARCUT','2.5'));
     sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying float vCamD;').replace('#include <project_vertex>','#include <project_vertex>\nvCamD=-mvPosition.z;')};m.customProgramCacheKey=()=>'see-'+key;return m}
 // and a tree right in front of the camera dissolves, so it never hides the commander
 function swayMat(){const m=new THREE.MeshLambertMaterial({vertexColors:true});const T={value:0};m.onBeforeCompile=sh=>{sh.uniforms.uT=T;
-    sh.uniforms.uFoc=FOC;sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying float vCamD;uniform vec4 uFoc;').replace('#include <clipping_planes_fragment>','#include <clipping_planes_fragment>\n{float k=smoothstep(5.,13.,vCamD);if(vCamD<uFoc.z-2.){float r=length(gl_FragCoord.xy-uFoc.xy)/uFoc.w;k=min(k,mix(.08,1.,smoothstep(.55,1.,r)));}if(k<.2)discard;if(k<1.&&fract(sin(dot(floor(gl_FragCoord.xy),vec2(12.9898,78.233)))*43758.5453)>k)discard;}');
+    sh.uniforms.uFoc=FOC;sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying float vCamD;uniform vec4 uFoc;').replace('#include <clipping_planes_fragment>','#include <clipping_planes_fragment>\n'+DISS.replace('NEARCUT','6.'));
     sh.vertexShader=sh.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\nvCamD=-mvPosition.z;').replace('#include <common>','#include <common>\nuniform float uT;varying float vCamD;').replace('#include <begin_vertex>','#include <begin_vertex>\n#ifdef USE_INSTANCING\n{vec4 wp=instanceMatrix*vec4(0.,0.,0.,1.);float k=max(0.,position.y-1.5)*.035;transformed.x+=sin(uT*1.3+wp.x*.05+wp.z*.07)*k;transformed.z+=cos(uT*1.1+wp.x*.06)*k*.7;}\n#endif\n')};m.userData.T=T;return m}
 const NEAR_T=230,ROCK_R=420,FAR_T=S_FAR();function S_FAR(){return S.small?950:1150}
 export function makeNodes(){const geos=nodeGeos(),mat=swayMat(),rmat=new THREE.MeshLambertMaterial({vertexColors:true}),small=S.small;

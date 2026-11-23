@@ -12,7 +12,11 @@ const Q=new URLSearchParams(location.search),invite=Q.get('oda');
 let duel=Q.get('m')==='2',big=Q.get('m')==='big';try{if(!Q.get('m')&&localStorage.getItem('cephe_mod')==='big'){big=true;localStorage.removeItem('cephe_mod')}}catch(e){}
 let ch=null,joinedAt=0,timer=null,started=false,code=null,host=false,lookT=0;
 try{$('lName').value=localStorage.getItem('cephe_name')||''}catch(e){}
-if(!$('lName').value)$('lName').value='Oyuncu'+(100+Math.random()*900|0);
+// the name stays as the player wrote it: saved as soon as it is typed (and kept in a cookie too, should storage be cleared)
+if(!$('lName').value){const m=document.cookie.match(/(?:^|; )cephe_name=([^;]*)/);if(m)try{$('lName').value=decodeURIComponent(m[1])}catch(e){}}
+if(!$('lName').value){$('lName').value='Oyuncu'+(100+Math.random()*900|0);try{localStorage.setItem('cephe_name',$('lName').value)}catch(e){}}
+const keepName=()=>{const v=$('lName').value.trim().slice(0,12);if(!v)return;try{localStorage.setItem('cephe_name',v)}catch(e){}document.cookie='cephe_name='+encodeURIComponent(v)+';max-age=31536000;path=/;SameSite=Lax'};
+$('lName').addEventListener('input',keepName);$('lName').addEventListener('change',keepName);keepName();
 const nick=()=>($('lName').value.trim()||'Oyuncu').slice(0,12);
 const err=m=>{$('lErr').textContent=m;$('lErr').hidden=!m};
 // language: Turkish or English, remembered on this device
@@ -71,7 +75,7 @@ async function enter(m){
   onlineAt(m.tutorial?'egitim':'oyun');
   window.ARENA={seat,id,room:String(m.room),players:m.players,sb,duel:!!m.duel,tutorial:!!m.tutorial,big:!!m.big,seed:m.seed>>>0,t0:+m.t0||0};
   $('lStatus').textContent=L('Harita hazırlanıyor…','Preparing the map…');
-  try{if(m.big){$('lobby').hidden=true;await import('./meydan/oyun.js?v=20261123f')}else{await import('./oyun.js?v=20261123f');$('lobby').hidden=true}}
+  try{if(m.big){$('lobby').hidden=true;await import('./meydan/oyun.js?v=20261123g')}else{await import('./oyun.js?v=20261123g');$('lobby').hidden=true}}
   catch(e){console.error(e);err(L('Oyun yüklenemedi. Sayfayı yenile.','The game failed to load. Refresh the page.'))}
 }
 function join(name){
@@ -105,8 +109,9 @@ $('lBots').onclick=()=>{
   try{localStorage.setItem('cephe_name',nick())}catch(e){}
   $('lHome').hidden=true;$('lMode').hidden=true;$('lQueue').hidden=false;$('lCancel').hidden=true;
   if(big){enter({room:'mdnbot'+Math.random().toString(36).slice(2,10),big:true,seed:(Math.random()*4294967295)>>>0,t0:Date.now()+2500,players:[{id,name:nick()}]});return}
-  enter(duel?{room:'bot'+Math.random().toString(36).slice(2,10),duel:true,players:[{id,name:nick()},{id:'b1',name:L('Yapay Zeka','Computer'),bot:1}]}
-    :{room:'bot'+Math.random().toString(36).slice(2,10),players:[{id,name:nick()},{id:'b1',name:L('Yapay Zeka','Computer')+' 1',bot:1},{id:'b2',name:L('Yapay Zeka','Computer')+' 2',bot:2},{id:'b3',name:L('Yapay Zeka','Computer')+' 3',bot:3}]});
+  const BN=['Alp','Bora','Kaya','Tuna','Arda','Efe','Ayaz','Batu','Oğuz','Doruk','Kuzey','Atlas','Yiğit','Selim','Toprak','Çağan','Mete','Aras','Eren','Ilgaz'].sort(()=>Math.random()-.5).filter(n=>n!==nick());
+  enter(duel?{room:'bot'+Math.random().toString(36).slice(2,10),duel:true,players:[{id,name:nick()},{id:'b1',name:BN[0],bot:1}]}
+    :{room:'bot'+Math.random().toString(36).slice(2,10),players:[{id,name:nick()},{id:'b1',name:BN[0],bot:1},{id:'b2',name:BN[1],bot:2},{id:'b3',name:BN[2],bot:3}]});
 };
 $('lInvite').onclick=()=>{err('');$('lHome').hidden=true;$('lMode').hidden=true;$('lFriends').hidden=false;$('lCode').value=''};
 $('lCreate').onclick=()=>{try{localStorage.setItem('cephe_name',nick())}catch(e){}openRoom(newCode(),true)};
