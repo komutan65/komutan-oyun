@@ -7,7 +7,7 @@ import {HALF,smooth,rng,CASTLES} from './dunya.js';
 import {FOC,castleFade,S,makeScene,makeGround,updateGround,makeNodes,updateNodes,nodesNear,makeClutter,updateClutter,makeCastles,castleLook,drawChests,makeZone,drawZone,makeFx,chips,drawChips,mapImage,groundAt,placeSun,CW} from './sahne.js';
 import {CHR,loadChr,chrPush,chrFlush,chrTime} from './karakter.js';
 import {loadHorses} from './at.js';
-import {_T,makeCannons,shellAdd,craterAdd,fireAdd,fires,cannonsTick,cannonsDraw,explodeFx} from './top.js';
+import {_T,makeCannons,shellAdd,craterAdd,fireAdd,fires,cannonsTick,cannonsDraw,explodeFx,smokeAt,sparks} from './top.js';
 import {makeSites,makeSiteMeshes,drawSites,siteVia as viaSite,siteAt as siteAtP,CENTER_R,LVC} from './hazine.js';
 const V=new URL(import.meta.url).searchParams.get('v')||'1';
 const {SES}=await import('../ses.js?v='+V);
@@ -62,6 +62,8 @@ document.body.classList.add('mdn');for(const id of['lobby','hud','ov','eye','rot
 const css=document.createElement('style');css.textContent=`
 body.mdn #ov,body.mdn #hud,body.mdn #eye,body.mdn #rot,body.mdn #ver{display:none!important}
 #mdn{position:fixed;inset:0;pointer-events:none;font:600 14px Georgia,serif;color:#f6ecd4;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+#mAim{position:absolute;left:50%;top:46%;width:70px;height:70px;margin:-35px 0 0 -35px;display:none;pointer-events:none}#mAim i{position:absolute;inset:0;border:2px solid rgba(255,230,160,.9);border-radius:50%}#mAim b{position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px;background:#ffd36a;border-radius:50%}#mAim:before,#mAim:after{content:'';position:absolute;background:rgba(255,230,160,.9)}#mAim:before{left:-18px;right:-18px;top:50%;height:2px;margin-top:-1px}#mAim:after{top:-18px;bottom:-18px;left:50%;width:2px;margin-left:-1px}
+#mAimBar{position:absolute;left:0;right:0;bottom:-22px;height:5px;background:rgba(0,0,0,.4);border-radius:3px;overflow:hidden}#mAimR{display:block;height:100%;background:#ffd36a}#mAimT{position:absolute;left:0;right:0;bottom:-42px;text-align:center;font-size:12px;color:#ffe9b0;text-shadow:0 1px 2px #000}
 #mVig{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 45%,rgba(0,0,0,0) 58%,rgba(10,14,20,.30) 100%)}
 html,body,canvas{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}canvas{touch-action:none}
 #mdn button{pointer-events:auto;font:700 14px Georgia,serif;color:#f6ecd4;background:rgba(20,26,34,.82);border:1.5px solid #c9b07a;border-radius:10px;cursor:pointer;touch-action:none}
@@ -84,7 +86,7 @@ html,body,canvas{-webkit-user-select:none;user-select:none;-webkit-touch-callout
 :root{--sab:env(safe-area-inset-bottom,0px)}#mJoyH{position:absolute;left:${SMALL?78:96}px;bottom:calc(${SMALL?78:96}px + env(safe-area-inset-bottom,0px));width:120px;height:120px;border-radius:50%;border:2px dashed rgba(255,255,255,.28);background:rgba(0,0,0,.08);transform:translate(-50%,50%)}
 #mJoy{position:absolute;width:120px;height:120px;border-radius:50%;border:2px solid rgba(255,255,255,.35);background:rgba(255,255,255,.08);display:none;transform:translate(-50%,-50%)}
 #mJoy i{position:absolute;left:50%;top:50%;width:52px;height:52px;border-radius:50%;background:rgba(255,240,200,.55);transform:translate(-50%,-50%)}
-#mTip{position:absolute;left:50%;transform:translateX(-50%);top:calc(${SMALL?6:66}px + env(safe-area-inset-top,0px));background:rgba(12,16,22,.8);border-radius:9px;padding:6px 12px;font-size:${SMALL?13:14}px;max-width:${SMALL?'calc(100vw - 2*min(46vw,215px) - 24px)':'86vw'};text-align:center;transition:opacity .4s;opacity:0}
+#mTip{position:absolute;left:50%;transform:translateX(-50%);top:calc(${SMALL?6:66}px + env(safe-area-inset-top,0px));background:rgba(12,16,22,.8);border-radius:9px;padding:6px 12px;font-size:${SMALL?13:14}px;max-width:${SMALL?'calc(100vw - 2*min(46vw,250px) - 8px)':'86vw'};text-align:center;transition:opacity .4s;opacity:0}
 #mPanel{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(16,20,28,.95);border:2px solid #c9b07a;border-radius:14px;padding:12px;pointer-events:auto;width:min(94vw,440px);max-height:88vh;overflow:auto}
 #mPanel h2{margin:0 0 8px;font-size:18px;color:#ffd98a;text-align:center}#mPanel p{margin:6px 0;font-size:13px;opacity:.92;text-align:center}
 #mPanel .row{display:flex;gap:8px;align-items:center;margin:6px 0}#mPanel .row button{flex:1;padding:10px 8px;text-align:left}#mPanel .row button small{display:block;font-weight:400;font-size:12px;color:#ffd98a;margin-top:2px}
@@ -100,16 +102,19 @@ html,body,canvas{-webkit-user-select:none;user-select:none;-webkit-touch-callout
 .mLab i{display:block;margin:2px auto 0;width:46px;height:4px;background:#3a1d1d;border-radius:2px;overflow:hidden}.mLab i b{display:block;height:100%;background:#e05a3a}
 .mLab.c{font-size:13px;font-weight:700}
 .mNum{position:absolute;transform:translate(-50%,-50%);font:800 17px Georgia,serif;text-shadow:0 2px 3px #000,0 0 4px #000;pointer-events:none}
+#mGuide{position:absolute;left:10px;top:calc(${SMALL?150:156}px + env(safe-area-inset-top,0px));width:min(46vw,215px);background:rgba(12,16,22,.78);border:1px solid #c9b07a;border-radius:10px;padding:6px 26px 6px 9px;font-size:${SMALL?12:13}px;line-height:1.3;display:none;pointer-events:auto}
+#mGuide b{display:block;color:#ffd98a;font-size:${SMALL?11:12}px;margin-bottom:2px}#mGuide em{font-style:normal;color:#9fe08a}#mGuide button{position:absolute;right:3px;top:3px;padding:0 6px!important;font-size:12px!important;background:none!important;border:0!important;box-shadow:none!important;color:#ccc}
+#mGArr{position:absolute;width:44px;height:44px;margin:-22px 0 0 -22px;display:none;pointer-events:none;filter:drop-shadow(0 2px 3px #000)}#mGArr svg{width:100%;height:100%}#mGArr span{position:absolute;top:44px;left:50%;transform:translateX(-50%);font:700 12px sans-serif;color:#ffe08a;text-shadow:0 1px 2px #000;white-space:nowrap}
 #mHurt{position:absolute;inset:0;box-shadow:inset 0 0 90px rgba(200,20,20,0);transition:box-shadow .25s}
 #mOut{position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(120,40,160,0) 40%,rgba(120,40,160,.35));display:none}`;
 document.head.append(css);
 const UI=document.createElement('div');UI.id='mdn';UI.innerHTML=`<div id="mOut"></div><div id="mHurt"></div><div id="mLabs"></div>
-<div id="mVig"></div><div id="mHp"><b id="mName"></b><div id="mHpBar"><i></i></div><div id="mLv"></div></div><div id="mGold"></div><div id="mTop"></div><canvas id="mMini" width="220" height="220"></canvas><div id="mFeed"></div>
+<div id="mVig"></div><div id="mAim"><i></i><b></b><div id="mAimBar"><span id="mAimR"></span></div><div id="mAimT"></div></div><div id="mHp"><b id="mName"></b><div id="mHpBar"><i></i></div><div id="mLv"></div></div><div id="mGold"></div><div id="mTop"></div><canvas id="mMini" width="220" height="220"></canvas><div id="mFeed"></div>
 <div id="mJoyH"></div><div id="mJoy"><i></i></div><button id="mAct">⚔️</button>
 <div id="mGrp"><button data-g="0">${TL('Tümü','All')}<small></small></button><button data-g="1">I<small></small></button><button data-g="2">II<small></small></button><button data-g="3">III<small></small></button></div>
 <div id="mCmd"><button data-m="takip"><b>👣</b>${TL('Takip','Follow')}</button><button data-m="hucum"><b>⚔️</b>${TL('Hücum','Charge')}</button><button data-m="pusu"><b>🌲</b>${TL('Pusu','Ambush')}</button><button data-m="bekle"><b>✋</b>${TL('Bekle','Hold')}</button><button data-m="kale"><b>🏰</b>${TL('Kaleye','Castle')}</button></div>
 <div id="mSide"><button id="mTow" style="display:none"><b>💣</b><span>${TL('Bağla','Hitch')}</span></button><button id="mRide"><b>🐎</b><span>${TL('Bin','Mount')}</span></button><button id="mShop"><b>🔨</b>${TL('Kale','Castle')}</button><button id="mArmyB"><b>🐎</b>${TL('Ordu','Army')}</button></div>
-<button id="mMenu">☰</button><div id="mTip"></div>`;
+<button id="mMenu">☰</button><div id="mTip"></div><div id="mGuide"><b></b><span></span><button>✕</button></div><div id="mGArr"><svg viewBox="0 0 44 44"><path d="M22 3 L38 36 L22 28 L6 36 Z" fill="#ffd36a" stroke="#3a2a08" stroke-width="2"/></svg><span></span></div>`;
 document.body.append(UI);
 let tipT=0;function tip(m,s=3){const e=$('mTip');e.textContent=m;e.style.opacity=1;tipT=s}
 function feed(m){const f=$('mFeed'),d=document.createElement('div');d.textContent=m;f.prepend(d);while(f.children.length>5)f.lastChild.remove();setTimeout(()=>d.remove(),9000)}
@@ -145,6 +150,8 @@ function spawnArmy(p){const Cc=S.castles[p.home];if(!Cc)return;p.units=[];const 
 function mkHorse(p,i,x,z,a){return{i,x,z,a,y:groundAt(x,z),rider:null,want:null,mv:0,ph:Math.random(),coat:COATS[(p.ix*7+i)%COATS.length]}}
 function mount(p,u,h){if(!u||!h)return;h.rider=u.k;h.want=null;u.horse=true;u.hi=h.i;u.wantH=null;u.mhp+=HORSE_HP;u.hp+=HORSE_HP;u.coat=h.coat;if(started)snd('kisne',u.x,u.z,40,.7)}
 function dismount(p,u){const h=p.hs.find(o=>o.rider===u.k);u.horse=false;u.hi=null;u.mhp-=HORSE_HP;u.hp=Math.max(1,Math.min(u.hp,u.mhp));if(h){h.rider=null;h.x=u.x+Math.cos(u.a)*1.7;h.z=u.z-Math.sin(u.a)*1.7;h.a=u.a;h.rest=gtime()+3}}
+function foeHorse(p,x,z,r){let best=null,bd=r;for(const q of PL){if(q===p)continue;for(const h of q.hs){if(h.rider!=null||h.want!=null||h.call!=null)continue;const d=Math.hypot(h.x-x,h.z-z);if(d<bd){bd=d;best={h,q}}}}return best}
+function stealHorse(p,q,h){const k=q.hs.indexOf(h);if(k>=0)q.hs.splice(k,1);const old=h.i;let i=0;while(p.hs.some(o=>o.i===i))i++;h.i=i;h.tx=h.tz=null;p.hs.push(h);send('steal',{p:q.ix,i:old,by:p.ix})}
 function freeHorse(p,x,z,r){let best=null,bd=r;for(const h of p.hs){if(h.rider!=null||h.want!=null||h.call!=null)continue;const d=Math.hypot(h.x-x,h.z-z);if(d<bd){bd=d;best=h}}return best}
 function horseTick(p,dt){const C=p.home!=null&&!CS[p.home].ruined?S.castles[p.home]:null;
   for(const h of p.hs){if(h.rider!=null){const r=p.units.find(o=>o.k===h.rider);if(!r||r.dead||!r.horse){h.rider=null;h.rest=gtime()+2}else{h.x=r.x;h.z=r.z;h.a=r.a;h.y=r.y;h.mv=r.mv;continue}}
@@ -171,7 +178,7 @@ if(!solo){try{NET.ch=A.sb.channel('mdn-'+A.room,{config:{broadcast:{self:false}}
   on('s',onState);on('h',m=>{const u=unitById(m.u);if(u&&PL[u.p].local)hurt(u,+m.d||0,PL[m.by]||null,+m.kx||0,+m.kz||0)});on('ch',m=>{const c=CS[m.c];if(c&&castleLocal(c))hurtCastle(c,+m.d||0,PL[m.by]||null)});
   on('claim',m=>{if(iAmHost())claim(+m.c,+m.p,gtime()<SETUP_T+6)});on('own',m=>{if(Array.isArray(m.o)&&gtime()<SETUP_T+4)m.o.forEach((o,k)=>{if(o!==CS[k].owner)setOwner(k,o)})});
   on('k',m=>{const k=PL[m.by];if(k&&k.local){k.gold+=m.c?CMD_G:KILL_G;if(m.c)k.kills++;if(k===ME)tip(m.c?TL(`Komutan yenildi! +${CMD_G} altın`,`Commander down! +${CMD_G} gold`):`+${KILL_G} 🪙`,1.5)}});
-  on('lt',m=>{const c=CS[m.c];if(c){c.gold=0;c.wpn=0;chestDirty=true}});on('tb',m=>{shellAdd(m.x0,m.y0,m.z0,m.x1,m.z1,m.d,(x,z)=>{craterAdd(x,z,m.r||2.6);if(m.f)fireAdd(x,z,m.f)});snd('drum',m.x0,m.z0,220,1)});on('wt',m=>{const o=SITES[m.i],c=o&&o.chests[m.j|0];if(c)c.taken=true});on('cg',m=>{if(Array.isArray(m.g)&&!iAmHost())m.g.forEach((g,k)=>{CS[k].gold=g});chestDirty=true});
+  on('lt',m=>{const c=CS[m.c];if(c){c.gold=0;c.wpn=0;chestDirty=true}});on('tb',m=>{shellAdd(m.x0,m.y0,m.z0,m.x1,m.z1,m.d,(x,z)=>{craterAdd(x,z,m.r||2.6);if(m.f)fireAdd(x,z,m.f);snd('gulle',x,z,200,1)},m.ap);snd('top',m.x0,m.z0,260,1)});on('steal',m=>{const q=PL[m.p];if(q&&q.local){const k=q.hs.findIndex(h=>h.i===m.i);if(k>=0)q.hs.splice(k,1)}});on('wt',m=>{const o=SITES[m.i],c=o&&o.chests[m.j|0];if(c)c.taken=true});on('cg',m=>{if(Array.isArray(m.g)&&!iAmHost())m.g.forEach((g,k)=>{CS[k].gold=g});chestDirty=true});
   on('cap',m=>{const p=PL[m.o];if(p&&CS[m.c]&&CS[m.c].owner!==m.o)takeCastle(+m.c,p)});
   on('cr',m=>{ruin(+m.c,PL[m.by]||null)});on('ah',m=>{const c=CS[m.c];if(c&&castleLocal(c))hurtArcher(m.c,m.i|0,+m.d||0,PL[m.by]||null)});on('ad',m=>{const c=CS[m.c];if(c&&c.ah)c.ah[m.i|0]=0});on('ar',m=>{const c=CS[m.c];if(c&&c.ah)c.ah[m.i|0]=ARCH_HP});on('f',m=>{bolts.push({x:+m.x,y:+m.y,z:+m.z,dx:+m.dx,dz:+m.dz,dy:+m.dy,t:0,vis:true})});on('out',m=>{const p=PL[m.p];if(p&&!p.local)eliminate(p)});
   NET.ch.subscribe(s=>{if(s==='SUBSCRIBED')NET.on=true})}catch(e){console.warn(e)}}
@@ -246,13 +253,28 @@ function gunTick(p,dt){if(!p.local)return;for(let gi=p.guns.length-1;gi>=0;gi--)
   else{c.hx=c.hz=null}
   c.mv=Math.hypot(c.x-ox,c.z-oz)/dt;c.wh+=Math.hypot(c.x-ox,c.z-oz)/.6;c.still=c.mv<.3?(c.still||0)+dt:0;
   // the gunners: anyone of this player standing by it. With a target, the gun stands, turns and fires
-  let gunner=null;for(const o of p.units){if(!o.dead&&Math.hypot(o.x-c.x,o.z-c.z)<7&&(!p.G||o.k===0||o.g===c.g)){gunner=o;break}}
+  if(c.man){c.cd=Math.max(0,c.cd);continue}
+  let gunner=null;for(const o of p.units){if(!o.dead&&o.k>0&&Math.hypot(o.x-c.x,o.z-c.z)<7&&(!p.G||o.g===c.g)){gunner=o;break}}
   for(const o of p.units)if(o.gunOp===c.id&&(o!==gunner||!tg))o.gunOp=null;
   if(tg&&gunner&&c.still>.8){gunner.gunOp=c.id;const want=Math.atan2(tg.x-c.x,tg.z-c.z),da=angD(c.a,want);c.a+=Math.sign(da)*Math.min(Math.abs(da),1.3*dt);
     if(Math.abs(da)<.12&&c.cd<=0){c.cd=GUN.cd;const d=Math.hypot(tg.x-c.x,tg.z-c.z),dur=.7+d/55,lead=tg.vx!=null?dur:0,tx=tg.x+(tg.vx||0)*lead+(Math.random()-.5)*d*.05,tz=tg.z+(tg.vz||0)*lead+(Math.random()-.5)*d*.05;
       const mx=c.x+Math.sin(c.a)*1.7,mz=c.z+Math.cos(c.a)*1.7,my=groundAt(c.x,c.z)+1,fire=Math.random()<.4?9+Math.random()*6:0,r=2.2+Math.random()*1.2;
-      shellAdd(mx,my,mz,tx,tz,dur,(x,z)=>{craterAdd(x,z,r);if(fire)fireAdd(x,z,fire);blastAt(p,x,z,tg.cs)});send('tb',{x0:+mx.toFixed(1),y0:+my.toFixed(1),z0:+mz.toFixed(1),x1:+tx.toFixed(1),z1:+tz.toFixed(1),d:+dur.toFixed(2),f:+fire.toFixed(1),r:+r.toFixed(1)});snd('drum',c.x,c.z,220,1);
+      shellAdd(mx,my,mz,tx,tz,dur,(x,z)=>{craterAdd(x,z,r);if(fire)fireAdd(x,z,fire);blastAt(p,x,z,tg.cs);snd('gulle',x,z,200,1)});send('tb',{x0:+mx.toFixed(1),y0:+my.toFixed(1),z0:+mz.toFixed(1),x1:+tx.toFixed(1),z1:+tz.toFixed(1),d:+dur.toFixed(2),f:+fire.toFixed(1),r:+r.toFixed(1)});snd('top',c.x,c.z,260,1);
       c.x-=Math.sin(c.a)*.3;c.z-=Math.cos(c.a)*.3}}}}
+// ---------- the commander at the gun: he stands behind it and lays it himself (drag or stick to aim, ⚔️ to fire) ----------
+let gunMode=null;const SHOT={v:44,g:12};
+// where a ball fired from this gun at its present bearing and elevation comes down, and how long it flies
+function ballistic(c){const sa=Math.sin(c.a),ca=Math.cos(c.a),el=c.el??.22,vh=SHOT.v*Math.cos(el);let vy=SHOT.v*Math.sin(el),x=c.x+sa*1.7,z=c.z+ca*1.7,y=groundAt(c.x,c.z)+1,t=0,top=y;const y0=y,x0=x,z0=z;
+  for(let i=0;i<500;i++){const h=.03;x+=sa*vh*h;z+=ca*vh*h;y+=vy*h;vy-=SHOT.g*h;t+=h;top=Math.max(top,y);if(vy<0&&y<Math.max(groundAt(x,z),-.2))break;
+    let wall=false;for(const C of S.castles){if(Math.abs(x-C.x)<CW&&Math.abs(z-C.z)<CW&&y<groundAt(x,z)+8*.8){wall=true;break}}if(wall&&t>.3)break}
+  return{x0,y0,z0,x,z,t,apex:top-(y0+Math.max(groundAt(x,z),-.2))/2}}
+function enterGun(c){const u=ME.units[0];if(!u||u.dead)return;if(u.horse)setHorse(ME,0,false);c.tow=null;c.man=true;c.el=c.el??.22;gunMode=c;tip(TL('Topun başındasın: sürükleyerek ya da joystickle nişan al, ⚔️ ile ateş et. Sarı halka güllenin düşeceği yer.','At the gun: drag or use the stick to aim, ⚔️ to fire. The yellow ring shows where the ball lands.'),5)}
+function leaveGun(){if(gunMode){gunMode.man=false;gunMode=null}}
+function gunFire(){const c=gunMode;if(!c||c.cd>0)return;const B=ballistic(c);c.cd=3.2;const fire=Math.random()<.45?9+Math.random()*6:0,r=2.4+Math.random()*1.2,p=ME;
+  let cs=null;for(const C of S.castles)if(Math.abs(B.x-C.x)<CW+2&&Math.abs(B.z-C.z)<CW+2)cs=C;
+  shellAdd(B.x0,B.y0,B.z0,B.x,B.z,B.t,(x,z)=>{craterAdd(x,z,r);if(fire)fireAdd(x,z,fire);blastAt(p,x,z,cs)},B.apex);send('tb',{x0:+B.x0.toFixed(1),y0:+B.y0.toFixed(1),z0:+B.z0.toFixed(1),x1:+B.x.toFixed(1),z1:+B.z.toFixed(1),d:+B.t.toFixed(2),f:+fire.toFixed(1),r:+r.toFixed(1),ap:+B.apex.toFixed(1)});
+  snd('top',c.x,c.z,260,1.2);c.kick=1;camShake=.5}
+let camShake=0;
 // the commander hitches the nearest cannon to his horse, or lets it go
 function gunNear(p){const u=p.units[0];if(!u||u.dead)return null;let best=null,bd=9;for(const c of p.guns){const d=Math.hypot(c.x-u.x,c.z-u.z);if(c.tow===0)return c;if(d<bd){bd=d;best=c}}return best}
 function toggleTow(){const u=ME.units[0],c=gunNear(ME);if(!u||!c)return;if(c.tow===0){c.tow=null;tip(TL('Topu çözdün. Düşman menzile girince yanındaki askerler ateşler.','Cannon unhitched. Men beside it fire when an enemy comes in range.'),3);return}
@@ -261,14 +283,19 @@ function toggleTow(){const u=ME.units[0],c=gunNear(ME);if(!u||!c)return;if(c.tow
 // a ball lands: men nearby are thrown and hurt (the fewer the farther), an enemy castle takes the blow, a gun nearby is damaged
 function blastAt(p,x,z,cs){for(const q of PL){if(q===p||q.out)continue;for(const v of q.units){if(v.dead)continue;const d=Math.hypot(v.x-x,v.z-z);if(d>GUN.blast)continue;const k=1-d/(GUN.blast+1);hitUnit(v,GUN.dmg*k,p,(v.x-x)/(d||1)*k*6,(v.z-z)/(d||1)*k*6)}
     for(const g of q.guns)if(Math.hypot(g.x-x,g.z-z)<GUN.blast&&q.local)g.hp-=GUN.dmg*.8}
-  for(const C of S.castles){if(Math.abs(x-C.x)>CW+2||Math.abs(z-C.z)>CW+2)continue;const c=CS[C.k];if(c.owner===p.ix||c.ruined)continue;const d=GUN.dmg*2.2;if(castleLocal(c))hurtCastle(c,d,p);else send('ch',{c:c.k,d,by:p.ix})}}
+  for(const C of S.castles){if(Math.abs(x-C.x)>CW+2||Math.abs(z-C.z)>CW+2)continue;const c=CS[C.k];if(c.owner===p.ix||c.ruined)continue;const d=GUN.dmg*2.2;chips(x,groundAt(x,z)+3,z,'#a8a296',14,6);smokeAt(x,groundAt(x,z)+3,z,6,2.2,'#8a847a');if(castleLocal(c))hurtCastle(c,d,p);else send('ch',{c:c.k,d,by:p.ix})}}
 // fires burn whoever stands in them (each player's own men, on their own screen)
 let fireAcc=0;function fireTick(dt){fireAcc+=dt;if(fireAcc<.5)return;const h=fireAcc;fireAcc=0;for(const f of fires())for(const p of PL){if(!p.local||p.out)continue;for(const u of p.units){if(u.dead)continue;if(Math.hypot(u.x-f.x,u.z-f.z)<f.r+.6)hurt(u,10*h,null,0,0)}}}
-function ruin(k,by){const c=CS[k];if(c.ruined)return;c.ruined=true;c.hp=0;const o=c.owner;castleLook(k,o!=null?PL[o].col:new THREE.Color('#999'),true);if(o!=null){const p=PL[o];p.castles=p.castles.filter(x=>x!==k);if(p.home===k)p.home=p.castles[0]??null;feed(TL(`${CASTLES[k].ad} yıkıldı!`,`${CASTLES[k].en} has fallen!`));if(p===ME)tip(p.home!=null?TL('Bir kalen yıkıldı!','One of your castles has fallen!'):TL('Kalen yıkıldı! Komutanın ölürse bir daha dönemez.','Your castle has fallen! If your commander dies now, it is over.'),5)}
+// a castle falls: blasts go off through it one after another, fires take hold in the yard, dust and smoke roll up
+const booms=[];
+function ruinFx(k){const C=CASTLES[k];for(let i=0;i<9;i++){const a=Math.random()*6.283,r=Math.random()*CW;booms.push({t:i*.28+Math.random()*.2,x:C.x+Math.cos(a)*r,z:C.z+Math.sin(a)*r,big:i%3===0})}
+  for(let i=0;i<4;i++){const a=Math.random()*6.283,r=4+Math.random()*(CW-6);fireAdd(C.x+Math.cos(a)*r,C.z+Math.sin(a)*r,22+Math.random()*12,2.2)}snd('yikil',C.x,C.z,400,1.2);if(Math.hypot(C.x-cam.x,C.z-cam.z)<120)camShake=.9}
+function boomTick(dt){for(let i=booms.length-1;i>=0;i--){const b=booms[i];b.t-=dt;if(b.t>0)continue;booms.splice(i,1);explodeFx(b.x,b.z);sparks(b.x,groundAt(b.x,b.z)+3+Math.random()*5,b.z,b.big?22:12,b.big?1.8:1.1);smokeAt(b.x,groundAt(b.x,b.z)+4,b.z,b.big?10:5,b.big?3:2,'#6a625a');chips(b.x,groundAt(b.x,b.z)+4,b.z,'#9a948a',b.big?18:8,7);if(b.big)snd('bomba',b.x,b.z,300,.9)}}
+function ruin(k,by){const c=CS[k];if(c.ruined)return;ruinFx(k);c.ruined=true;c.hp=0;const o=c.owner;castleLook(k,o!=null?PL[o].col:new THREE.Color('#999'),true);if(o!=null){const p=PL[o];p.castles=p.castles.filter(x=>x!==k);if(p.home===k)p.home=p.castles[0]??null;feed(TL(`${CASTLES[k].ad} yıkıldı!`,`${CASTLES[k].en} has fallen!`));if(p===ME)tip(p.home!=null?TL('Bir kalen yıkıldı!','One of your castles has fallen!'):TL('Kalen yıkıldı! Komutanın ölürse bir daha dönemez.','Your castle has fallen! If your commander dies now, it is over.'),5)}
   if(by&&by.local&&by.ix!==o)by.gold+=200;const C=CASTLES[k];for(let i=0;i<40;i++)chips(C.x+(Math.random()-.5)*30,C.y+3+Math.random()*6,C.z+(Math.random()-.5)*30,'#9a958a',1,6)}
 
 // ---------- fighting ----------
-const bolts=[],nums=[];
+const bolts=[],nums=[],stuck=[];
 function popNum(x,y,z,txt,c){if(nums.length>14)nums.shift().el.remove();const el=document.createElement('div');el.className='mNum';el.textContent=txt;el.style.color=c;$('mLabs').append(el);nums.push({x,y,z,t:0,el})}
 function hurt(u,d,by,kx,kz){if(u.dead)return;const p=PL[u.p],T=unitStats(p,u);d*=1-(T.zr+.08*p.lv.z);u.hp-=d;u.flash=1;u.kx+=kx;u.kz+=kz;u.hurtT=gtime();
   if(u.k===0&&p===ME){$('mHurt').style.boxShadow='inset 0 0 90px rgba(200,20,20,.55)';setTimeout(()=>$('mHurt').style.boxShadow='inset 0 0 90px rgba(200,20,20,0)',220)}
@@ -339,6 +366,8 @@ const T=unitStats(p,u),C0=p.units[0],gs=p.G?p.G[u.g]||p.G[1]:p,m=gs.mode;u.hid=f
 function grpIx(p,u){let i=0;for(const o of p.units){if(o===u)return i;if(o.k>0&&!o.dead&&o.g===u.g)i++}return i}
 function stepUnit(p,u,dt,t){u.cd=Math.max(0,u.cd-dt);u.flash=Math.max(0,u.flash-dt*4);if(u.dead)return;
   const T=unitStats(p,u),sp=Math.min(T.sp*(u.horse?HORSE_SP:1)*(u.act?.4:1),u.horse&&p.guns.some(g=>(g.tow===0&&u.k===0)||(g.crew===u.k&&g.id===u.gun))?GUN.tow:99);let ix=0,iz=0;
+  if(u.k===0&&p===ME&&gunMode){const c=gunMode;if(!p.guns.includes(c)||u.dead){leaveGun()}else{u.x=c.x-Math.sin(c.a)*2.3+Math.cos(c.a)*.5;u.z=c.z-Math.cos(c.a)*2.3-Math.sin(c.a)*.5;u.a=c.a;u.mv=0;u.y=groundAt(u.x,u.z);
+    c.a-=input.jx*dt*.9;c.el=clamp((c.el??.22)-input.jy*dt*.35,.02,.75);return}}
   if(u.k===0&&p===ME){worldInput();ix=input.x;iz=input.z}
   else{if(u.k===0&&p.bot)botCmdThink(p,u,t,dt);else if(u.k>0){u.think=(u.think||0)-dt;if(u.think<=0){u.think=.25+Math.random()*.15;soldierThink(p,u)}}
     const g=u.go?siteVia(u,viaGate(u,u.go)):null;if(g){const dx=g.x-u.x,dz=g.z-u.z,d=Math.hypot(dx,dz);if(d>(g.stop||.5)){ix=dx/d;iz=dz/d;if(d<3){ix*=Math.max(.3,d/3);iz*=Math.max(.3,d/3)}}}
@@ -378,7 +407,7 @@ function separate(){const L=[];for(const p of PL)for(const u of p.units)if(!u.de
   for(const u of L){if(!PL[u.p].local)continue;const cx=Math.floor(u.x/3),cz=Math.floor(u.z/3),ru=u.horse?1.2:.55;for(let i=-1;i<=1;i++)for(let j=-1;j<=1;j++){const a=G.get((cx+i+500)*2000+cz+j+500);if(!a)continue;for(const o of a){if(o===u)continue;const m=ru+(o.horse?1.2:.55),dx=u.x-o.x,dz=u.z-o.z,d=Math.hypot(dx,dz);if(d<m&&d>1e-4){const k=(m-d)/d*.5;u.x+=dx*k;u.z+=dz*k}}}}}
 
 // ---------- the player's own commander: one button strikes ----------
-function action(){const p=ME,u=p.units[0];if(!started||!u||u.dead||u.act||u.cd>0)return;const T=unitStats(p,u);
+function action(){if(gunMode){gunFire();return}const p=ME,u=p.units[0];if(!started||!u||u.dead||u.act||u.cd>0)return;const T=unitStats(p,u);
   let tgt=enemyNear(p.ix,u.x,u.z,T.rng+1.4+(u.horse?.8:0));
   if(!tgt){let bd=T.okR||T.rng+2.4;for(const q of PL){if(q.ix===p.ix||q.out)continue;for(const o of q.units){if(o.dead)continue;const d=Math.hypot(o.x-u.x,o.z-u.z);if(d<bd&&Math.abs(angD(u.a,Math.atan2(o.x-u.x,o.z-u.z)))<(T.okR?.6:1.2)){bd=d;tgt=o}}}}
   if(!tgt&&T.okR)tgt=archNear(p.ix,u.x,u.z,T.okR+4);
@@ -428,7 +457,9 @@ function buy(p,k,w){const home=p.home!=null&&!CS[p.home].ruined?S.castles[p.home
 function setHorse(p,i,on){const u=p.units.find(o=>o.k===i);if(i===0)p.cmdHorse=on;else p.army[i-1].h=on;if(!u||u.dead)return true;
   if(!on){if(u.horse)dismount(p,u);if(u.wantH!=null){const h=p.hs.find(o=>o.i===u.wantH);if(h)h.want=null;u.wantH=null}return true}
   if(u.horse||u.wantH!=null)return true;
-  if(i===0&&p===ME){const h=freeHorse(p,u.x,u.z,4.5);if(h){mount(p,u,h);return true}p.cmdHorse=false;const c=freeHorse(p,u.x,u.z,1e9);
+  if(i===0&&p===ME){const h=freeHorse(p,u.x,u.z,4.5);if(h){mount(p,u,h);return true}
+    // an enemy's horse standing loose: take it
+    const st=foeHorse(p,u.x,u.z,4.5);if(st){stealHorse(p,st.q,st.h);mount(p,u,st.h);tip(TL('Düşmanın atını aldın! 🐎','You took an enemy horse! 🐎'),2.2);return true}p.cmdHorse=false;const c=freeHorse(p,u.x,u.z,1e9);
     if(c){c.call=0;tip(TL('Islık çaldın: atın dörtnala geliyor 🐎','You whistled: your horse is on its way 🐎'),2.5);snd('kisne',c.x,c.z,80,.6);return false}
     tip(TL('Boşta atın yok. Kalende 🔨 menüsünden at alabilirsin.','No free horse. Buy one at your castle (🔨).'),3);return false}
   const h=freeHorse(p,u.x,u.z,1e9);if(!h){if(i===0)p.cmdHorse=false;else p.army[i-1].h=false;return false}h.want=i;u.wantH=h.i;return true}
@@ -455,6 +486,35 @@ function tapOrder(sx,sy){if(!started||ME.out)return;const g=groundPick(sx,sy);if
   if(best){ME.mode='hucum';ME.goal={x:best.x,z:best.z,u:best.id};markAt(best.x,best.z,'#ff5a3a');tip(TL('Askerler hedefe saldırıyor','Soldiers attack the target'),1.6);order();return}
   for(const c of S.castles){if(Math.abs(g.x-c.x)<CW+3&&Math.abs(g.z-c.z)<CW+3){const s=CS[c.k];if(s.owner===ME.ix){ME.mode='kale';ME.goal=null;tip(TL('Askerler kaleyi koruyor','Soldiers guard the castle'),1.6)}else if(!s.ruined){ME.mode='hucum';ME.goal={x:c.x,z:c.z,c:c.k};tip(TL('Askerler kalenin avlusuna giriyor. Kaleyi almak için komutanınla avluya gir ve içeride düşman kalmayınca bayrak dolana kadar bekle.','Soldiers go into the castle yard. To take it, bring your commander into the yard and hold it until the flag fills, with no defenders left inside.'),4)}markAt(c.x,c.z,'#ff5a3a');order();return}}
   const amb=ME.G[SEL||1].mode==='pusu',c0=ME.units[0],fa=c0?Math.atan2(g.x-c0.x,g.z-c0.z):0;ME.mode=amb?'pusu':'git';ME.goal={x:g.x,z:g.z,a:fa};markAt(g.x,g.z,amb?'#7fd06a':'#ffffff');tip(amb?TL('Bölük oraya gidip pusu kuracak','The squad goes there and lies in ambush'):TL('Askerler oraya gidip bekleyecek','Soldiers go there and hold'),1.5);order()}
+
+// first-match guide: one step at a time, with an arrow on screen pointing at where to go
+let guide=null;try{guide=localStorage.getItem('mdn_guide')==='1'?null:{i:0}}catch(e){guide={i:0}}
+const GSTEPS=[
+ {t:()=>TL('Avludaki sandığı aç','Open the chest in the yard'),d:()=>TL('Sandığın üstüne yürü: altın senin.','Walk onto the chest: the gold is yours.'),
+  at:()=>ME.home!=null?S.castles[ME.home].chest:null,ok:()=>ME.home==null||CS[ME.home].gold<=0},
+ {t:()=>TL('Kapıdan dışarı çık','Leave through the gate'),d:()=>TL('Sol alttaki joystickle yürü. Askerlerin peşinden gelir.','Walk with the stick at the bottom left. Your men follow.'),
+  at:()=>ME.home!=null?S.castles[ME.home].gate:null,ok:()=>{const u=ME.units[0],C=ME.home!=null?S.castles[ME.home]:null;return !C||(u&&Math.hypot(u.x-C.x,u.z-C.z)>CW+6)}},
+ {t:()=>TL('Ata bin','Mount a horse'),d:()=>TL('🐎 Çağır: atın sana koşar. Yanına gelince 🐎 Bin.','🐎 Call: your horse runs to you. Then press 🐎 Mount.'),
+  at:()=>{const u=ME.units[0];if(!u)return null;let b=null,bd=1e9;for(const h of ME.hs){if(h.rider!=null)continue;const d=Math.hypot(h.x-u.x,h.z-u.z);if(d<bd){bd=d;b=h}}return b},ok:()=>{const u=ME.units[0];return (u&&u.horse)||!ME.hs.length}},
+ {t:()=>TL('Harabeden silah al','Get a weapon from a ruin'),d:()=>TL('Ok seni en yakın sandığa götürür. Daha iyi silah, daha çok hasar.','The arrow leads to the nearest chest. Better weapon, more damage.'),
+  at:()=>{const u=ME.units[0];if(!u)return null;let b=null,bd=1e9;for(const c of CHESTS){if(c.taken)continue;const d=Math.hypot(c.x-u.x,c.z-u.z);if(d<bd){bd=d;b=c}}return b},ok:()=>ME.units.some(o=>!o.dead&&(o.wl||1)>1)||ME.lv.s>0},
+ {t:()=>TL('Bir kale daha al','Take another castle'),d:()=>TL('Komutanınla avluya gir, içeride düşman kalmayınca bayrak dolana kadar bekle.','Walk your commander into the yard and hold it until the flag fills.'),
+  at:()=>{const u=ME.units[0];if(!u)return null;let b=null,bd=1e9;for(const C of S.castles){const c=CS[C.k];if(c.ruined||c.owner===ME.ix)continue;const d=Math.hypot(C.x-u.x,C.z-u.z)+(c.owner!=null?400:0);if(d<bd){bd=d;b=C}}return b},ok:()=>ME.castles.length>=2},
+];
+function guideEnd(){guide=null;try{localStorage.setItem('mdn_guide','1')}catch(e){}$('mGuide').style.display='none';$('mGArr').style.display='none'}
+function guideTick(){const box=$('mGuide');if(!guide||!started||ME.out||gunMode||mapOpen||panel){box.style.display='none';return}
+  while(guide.i<GSTEPS.length&&GSTEPS[guide.i].ok()){guide.i++;if(guide.i<GSTEPS.length){SES.para&&SES.para();tip(TL('✔ Aferin! Sıradaki görev solda.','✔ Well done! Next task on the left.'),2)}}
+  if(guide.i>=GSTEPS.length){tip(TL('Hazırsın komutan! Askerlerine emir vermek için yere ya da düşmana dokun. Son kalan kazanır.','You are ready, commander! Tap the ground or an enemy to order your men. The last one standing wins.'),6);guideEnd();return}
+  const g=GSTEPS[guide.i],h=`🎯 ${TL('Görev','Task')} ${guide.i+1}/${GSTEPS.length}`;box.style.display='block';if(box.firstChild.textContent!==h)box.firstChild.textContent=h;const tx=g.t()+' — '+g.d();if(box.children[1].textContent!==tx){box.children[1].innerHTML='<em></em> ';box.children[1].firstChild.textContent=g.t();box.children[1].append(g.d())}}
+$('mGuide').lastChild.onclick=guideEnd;
+const _gv=new THREE.Vector3();
+function guideArrow(){const A=$('mGArr');if(!guide||!started||ME.out||gunMode||mapOpen||panel||guide.i>=GSTEPS.length){A.style.display='none';return}
+  const o=GSTEPS[guide.i].at(),u=ME.units[0];if(!o||!u||u.dead){A.style.display='none';return}
+  const d=Math.hypot(o.x-u.x,o.z-u.z);if(d<3){A.style.display='none';return}
+  _gv.set(o.x,groundAt(o.x,o.z)+2.2,o.z).applyMatrix4(camera.matrixWorldInverse);const behind=_gv.z>0;_gv.applyMatrix4(camera.projectionMatrix);
+  let x=_gv.x,y=_gv.y;if(behind){x=-x;y=-y}const W=innerWidth,H=innerHeight,on=!behind&&Math.abs(x)<.85&&Math.abs(y)<.8;
+  let sx,sy,rot;if(on){sx=(x+1)/2*W;sy=(1-y)/2*H-26-Math.sin(performance.now()/180)*5;rot=180}else{const l=Math.hypot(x,y)||1,k=Math.min(.82/Math.abs(x/l||1e-6),.7/Math.abs(y/l||1e-6));sx=(1+x/l*k)/2*W;sy=(1-y/l*k)/2*H;rot=Math.atan2(x/l,y/l)*180/Math.PI}
+  A.style.display='block';A.style.left=sx+'px';A.style.top=sy+'px';A.firstChild.style.transform=`rotate(${rot}deg)`;const t=Math.round(d)+' m';if(A.lastChild.textContent!==t)A.lastChild.textContent=t}
 let markT=0;function markAt(x,z,c){const m=S.fx.mark;m.visible=true;m.position.set(x,groundAt(x,z)+.2,z);m.material.color.set(c);markT=1.5}
 cv.addEventListener('pointerdown',e=>{SES.init&&SES.init();try{cv.setPointerCapture(e.pointerId)}catch(_){}
   if(e.pointerType!=='mouse'&&!joy){const c=joyC();if(Math.hypot(e.clientX-c.x,e.clientY-c.y)<Math.min(150,innerHeight*.36)){joy={id:e.pointerId,x:c.x,y:c.y};const J=$('mJoy');J.style.display='block';J.style.left=c.x+'px';J.style.top=c.y+'px';joyMove(e);return}}
@@ -464,7 +524,7 @@ cv.addEventListener('pointerdown',e=>{SES.init&&SES.init();try{cv.setPointerCapt
 cv.addEventListener('pointermove',e=>{
   if(joy&&e.pointerId===joy.id){joyMove(e);return}
   if(pinch&&e.pointerId===pinch.id&&look){const d=Math.hypot(e.clientX-look.x,e.clientY-look.y);cd=clamp(pinch.cd*pinch.d/Math.max(d,20),6,60);return}
-  if(look&&e.pointerId===look.id){const dx=e.clientX-look.x,dy=e.clientY-look.y;look.x=e.clientX;look.y=e.clientY;if(pinch)return;cy-=dx*.006;cp=clamp(cp+dy*.004,.1,1.3)}});
+  if(look&&e.pointerId===look.id){const dx=e.clientX-look.x,dy=e.clientY-look.y;look.x=e.clientX;look.y=e.clientY;if(pinch)return;if(gunMode){gunMode.a-=dx*.004;gunMode.el=clamp((gunMode.el??.22)-dy*.003,.02,.75);return}cy-=dx*.006;cp=clamp(cp+dy*.004,.1,1.3)}});
 const up=e=>{if(joy&&e.pointerId===joy.id){joy=null;$('mJoy').style.display='none';setInput(0,0);return}if(pinch&&e.pointerId===pinch.id){pinch=null;return}
   if(look&&e.pointerId===look.id){const tap=Math.hypot(e.clientX-look.x0,e.clientY-look.y0)<8&&performance.now()-look.t<350;if(tap){if(look.mouse&&look.btn===0)action();else tapOrder(e.clientX,e.clientY)}look=null;pinch=null}};
 cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);cv.addEventListener('lostpointercapture',up);
@@ -473,10 +533,14 @@ addEventListener('touchend',e=>{if(e.touches.length===0){if(joy){joy=null;$('mJo
 // no page zoom, no text selection loupe, no long-press menu over the game
 for(const ev of['touchstart','touchmove'])cv.addEventListener(ev,e=>{if(e.cancelable)e.preventDefault()},{passive:false});for(const ev of['gesturestart','gesturechange','dblclick'])addEventListener(ev,e=>e.preventDefault(),{passive:false});cv.addEventListener('contextmenu',e=>e.preventDefault());
 cv.addEventListener('wheel',e=>{cd=clamp(cd*(1+Math.sign(e.deltaY)*.1),6,60);e.preventDefault()},{passive:false});
-addEventListener('keydown',e=>{const k=e.key.toLowerCase();keys.add(k);SES.init&&SES.init();if(k===' ')action();if(k==='1')setMode('takip');if(k==='2')setMode('hucum');if(k==='3')setMode('bekle');if(k==='4')setMode('kale');if(k==='b')openShop();if(k==='o')openArmy();if(k==='f'){const u=ME.units[0];if(u&&!u.dead)setHorse(ME,0,!u.horse)}if(k==='m')openMap();if(k==='escape')closePanel()});
+addEventListener('keydown',e=>{const k=e.key.toLowerCase();keys.add(k);SES.init&&SES.init();if(k===' ')action();if(k==='e'){if(gunMode)leaveGun();else{const g=gunNear(ME);if(g)enterGun(g)}}if(k==='1')setMode('takip');if(k==='2')setMode('hucum');if(k==='3')setMode('bekle');if(k==='4')setMode('kale');if(k==='b')openShop();if(k==='o')openArmy();if(k==='f'){const u=ME.units[0];if(u&&!u.dead)setHorse(ME,0,!u.horse)}if(k==='m')openMap();if(k==='escape')closePanel()});
 addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));
 function keyInput(){if(joy)return;if(!keys.size){if(input.jx||input.jy)setInput(0,0);return}let jx=0,jy=0;if(keys.has('a')||keys.has('arrowleft'))jx--;if(keys.has('d')||keys.has('arrowright'))jx++;if(keys.has('w')||keys.has('arrowup'))jy--;if(keys.has('s')||keys.has('arrowdown'))jy++;const l=Math.hypot(jx,jy)||1;setInput(jx/l,jy/l)}
-const hold={on:false};$('mAct').addEventListener('pointerdown',e=>{SES.init&&SES.init();hold.on=true;action();e.preventDefault()});for(const ev of['pointerup','pointercancel','pointerleave'])$('mAct').addEventListener(ev,()=>hold.on=false);
+// every on-screen button fires on the touch itself
+function fastTap(el){if(!el||el._ft)return;el._ft=1;let last=0;el.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse')return;e.preventDefault();e.stopPropagation();last=performance.now();if(el.onclick)el.onclick(e)});
+  el.addEventListener('click',e=>{if(performance.now()-last<700){e.stopImmediatePropagation();e.preventDefault()}},true)}
+const hold={on:false};for(const sel of['#mCmd button','#mGrp button','#mSide button','#mMenu'])for(const el of document.querySelectorAll(sel))fastTap(el);
+$('mAct').addEventListener('pointerdown',e=>{SES.init&&SES.init();hold.on=true;action();e.preventDefault()});for(const ev of['pointerup','pointercancel','pointerleave'])$('mAct').addEventListener(ev,()=>hold.on=false);
 function setMode(m){ME.mode=m;const c=ME.units[0];if(m==='bekle'||m==='pusu')ME.goal=c?{x:c.x,z:c.z,a:c.a}:null;if(m==='hucum')ME.goal=c?{x:c.x+Math.sin(c.a)*12,z:c.z+Math.cos(c.a)*12}:null;
   tip((SEL?['',TL('I. bölük: ','Squad I: '),TL('II. bölük: ','Squad II: '),TL('III. bölük: ','Squad III: ')][SEL]:'')+{takip:TL('Askerler seni takip ediyor','Soldiers follow you'),hucum:TL('Hücum! Askerler yakındaki düşmana saldırıyor. Bir düşmana ya da kaleye dokunarak hedef de gösterebilirsin.','Charge! Soldiers attack the enemies nearby. Tap an enemy or a castle to point them at it.'),bekle:TL('Askerler burada bekliyor','Soldiers hold here'),pusu:TL('Pusu kuruldu: askerler burada saklanıyor, düşman yaklaşınca birden saldırırlar. Ormanda daha iyi. Başka bir yere dokunursan bölük oraya gidip pusu kurar.','Ambush set: the soldiers hide here and strike when an enemy comes close. Best in a wood. Tap elsewhere to send the squad there to lie in wait.'),kale:TL('Askerler kaleye dönüyor','Soldiers go back to the castle')}[m],m==='pusu'?5:2.5);order()}
 function issue(){for(const gi of SEL?[SEL]:[1,2,3])ME.G[gi]={mode:ME.mode,goal:ME.goal?{...ME.goal}:null}}
@@ -486,7 +550,7 @@ function syncCmd(){const m=ME.G[SEL||1].mode;for(const b of $('mCmd').children)b
   for(const b of $('mGrp').children){const i=+b.dataset.g;b.classList.toggle('on',i===SEL);b.lastChild.textContent=n[i]}}
 for(const b of $('mCmd').children)b.onclick=()=>setMode(b.dataset.m);
 for(const b of $('mGrp').children)b.onclick=()=>{SEL=+b.dataset.g;ME.mode=ME.G[SEL||1].mode;ME.goal=ME.G[SEL||1].goal;syncCmd();tip(SEL?TL(`Emirler ${['','I','II','III'][SEL]}. bölüğe gidecek`,`Orders go to squad ${['','I','II','III'][SEL]}`):TL('Emirler bütün orduya gidecek','Orders go to the whole army'),1.6)};
-$('mTow').onclick=()=>toggleTow();$('mRide').onclick=()=>{const u=ME.units[0];if(!u||u.dead)return;setHorse(ME,0,!u.horse)};$('mShop').onclick=()=>openShop();$('mArmyB').onclick=()=>openArmy();$('mMini').onclick=()=>openMap();$('mMenu').onclick=()=>openMenu();
+$('mTow').onclick=()=>{if(gunMode){leaveGun();return}const g=gunNear(ME),u=ME.units[0];if(!g||!u)return;if(u.horse||g.tow===0)toggleTow();else enterGun(g)};$('mRide').onclick=()=>{const u=ME.units[0];if(!u||u.dead)return;setHorse(ME,0,!u.horse)};$('mShop').onclick=()=>openShop();$('mArmyB').onclick=()=>openArmy();$('mMini').onclick=()=>openMap();$('mMenu').onclick=()=>openMenu();
 
 // ---------- panels ----------
 let panel=null;function closePanel(){if(panel){panel.remove();panel=null}}
@@ -561,7 +625,7 @@ function startBattle(){if(setup){setup.remove();setup=null}saveArmy();started=tr
   for(const p of PL)if(p.home!=null){if(p.local)spawnArmy(p)}
   // every castle's chest starts with gold: a little in the castles that have owners, more in the empty ones
   for(const c of CS){c.gold=isCenter(c.k)?420:c.owner==null?260:160;c.wpn=isCenter(c.k)?8+Math.floor(WR()*3):0}chestDirty=true
-  if(ME.home!=null){const C=CASTLES[ME.home];cy=C.a+Math.PI;{const g=S.castles[ME.home].gate;markAt(g.x,g.z,'#ffd36a');markT=8}tip(TL(`${C.ad} senin! Kapı sarı işaretli, oradan çıkılır. Avludaki sandıktan altınını al. Boş kaleleri al: komutanınla avluya gir ve bekle. Düşman öldürmek altın kazandırır.`,`${C.en} is yours! The gate is marked in yellow. Take the gold from the chest in the yard. Take empty castles: walk your commander into the yard and hold it. Kills earn gold.`),7)}
+  if(ME.home!=null){const C=CASTLES[ME.home];cy=C.a+Math.PI;{const g=S.castles[ME.home].gate;markAt(g.x,g.z,'#ffd36a');markT=8}tip(guide?TL(`${C.ad} senin! Soldaki görevleri sırayla yap, sarı ok yolu gösterir.`,`${C.en} is yours! Follow the tasks on the left, the yellow arrow shows the way.`):TL(`${C.ad} senin! Kapı sarı işaretli, oradan çıkılır. Avludaki sandıktan altınını al. Boş kaleleri al: komutanınla avluya gir ve bekle. Düşman öldürmek altın kazandırır.`,`${C.en} is yours! The gate is marked in yellow. Take the gold from the chest in the yard. Take empty castles: walk your commander into the yard and hold it. Kills earn gold.`),7)}
   syncCmd()}
 
 // ---------- the end ----------
@@ -588,6 +652,8 @@ function slopeM(o,a,dt,mat){
   const y=Math.max(groundAt(o.x,o.z),(hf+hb)/2)-.04;q.setFromAxisAngle(UP,a);_hq.setFromAxisAngle(XA,o.pit);q.multiply(_hq);_hq.setFromAxisAngle(Z1,o.rol);q.multiply(_hq);return mat.compose(vp.set(o.x,y,o.z),q,vs.set(1,1,1))}
 function gait(o,dt){if(o.mv>4.6){o.gp=((o.gp||0)+dt*o.mv/9.5)%1;return'run'}if(o.mv>.6){o.gp=((o.gp||0)+dt*o.mv/3.4)%1;return'walk'}return'idle'}
 const RY=-.56,RS=.8;     // the rider: where his waist sits on the saddle, and his size
+const RING=new THREE.InstancedMesh(new THREE.RingGeometry(1.05,1.4,36).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({transparent:true,opacity:.6,depthWrite:false,blending:THREE.AdditiveBlending}),24);RING.count=0;RING.frustumCulled=false;RING.setColorAt(0,new THREE.Color());scene.add(RING);let ringN=0;
+function cmdRing(u,c,t){if(ringN>=24)return;const s=(u.horse?1.7:1)*(1+.06*Math.sin(t*3+u.p));m5.compose(vp.set(u.x,Math.max(groundAt(u.x,u.z),-.9)+.12,u.z),q2.identity(),vs.set(s,1,s));RING.setMatrixAt(ringN,m5);RING.setColorAt(ringN++,c);vs.set(1,1,1)}
 function drawUnit(p,u,t,dt){const cls=u.k===0?p.cmd:(u.w==='arbalet'?'okcu':'sovalye'),sc=u.k===0?1.12:.94;
   q.setFromAxisAngle(UP,u.a);m4.compose(vp.set(u.x,u.y,u.z),q,vs.set(1,1,1));tc.copy(p.col);if(u.flash>0)tc.multiplyScalar(1+u.flash*1.6);if(u.hid&&p===ME)tc.multiplyScalar(.45);
   let clip='idle',ph=t*.9+u.ph;if(u.dead){clip='die';ph=Math.min(.999,(t-(u.dieT||t))/.9)}else if(u.act){clip='atk';ph=Math.min(.999,u.act.t/u.act.dur);
@@ -597,8 +663,9 @@ function drawUnit(p,u,t,dt){const cls=u.k===0?p.cmd:(u.w==='arbalet'?'okcu':'sov
   if(u.horse&&!u.dead){slopeM(u,u.a,dt,m4);const g=gait(u,dt),st=hPush(g,g==='idle'?t/6.25+u.ph:u.gp,m4,u.coat);
     // a mounted crossbowman stays a crossbowman: the archer rides with his crossbow; a swordsman with his sword
     const arc=cls==='okcu',rs=RS*sc;m5.compose(vp.set(0,st[0]+(arc?-.867*rs:RY),st[1]),q2.setFromAxisAngle(XA,st[2]),vs.set(rs,rs,rs));m6.copy(m4).multiply(m5);
-    chrPush(arc?'atliokcu':'binici',u.act?'atk':'idle',u.act?(u.act.v&&!arc?.999-ph*.94:ph):arc?0:.15,m6,tc,u.gunOp!=null?0:wLv(p,u),p.lv.z);return}
-  if(sc!==1){m5.makeScale(sc,sc,sc);m4.multiply(m5)}const wl=u.gunOp!=null?0:wLv(p,u);chrPush(cls,clip,ph,m4,tc,wl,p.lv.z);
+    chrPush(arc?'atliokcu':'binici',u.act?'atk':'idle',u.act?(u.act.v&&!arc?.999-ph*.94:ph):arc?0:.15,m6,tc,u.gunOp!=null?0:wLv(p,u),u.k===0?3:p.lv.z);if(u.k===0)cmdRing(u,tc,t);return}
+  if(u.k===0&&!u.dead)cmdRing(u,tc,t);
+  if(sc!==1){m5.makeScale(sc,sc,sc);m4.multiply(m5)}const wl=u.gunOp!=null?0:wLv(p,u);chrPush(cls,clip,ph,m4,tc,wl,u.k===0?3:p.lv.z);
   // the finest weapons give off sparks of their colour
   if(wl>=8&&!u.hid&&Math.random()<dt*(wl-6)*1.4&&Math.abs(u.x-cam.x)<60&&Math.abs(u.z-cam.z)<60)chips(u.x+Math.cos(u.a)*.45,u.y+1+Math.random()*.8,u.z-Math.sin(u.a)*.45,LVC[wl-1],1,.7)}
 let spectate=null;
@@ -610,7 +677,15 @@ function draw(dt,t){
   cam.x=F.x;cam.z=F.z;camT.set(F.x,F.y+(F.horse?2.6:1.8),F.z);let d=started?cd:80;const yaw=started?cy:t*.06;
   // inside a castle the camera rises over the walls, so they never hide the army
   let cpE=cp;
-  camera.position.set(F.x+Math.sin(yaw)*Math.cos(cpE)*d,F.y+1.8+Math.sin(cpE)*d,F.z+Math.cos(yaw)*Math.cos(cpE)*d);const gy=Math.max(groundAt(camera.position.x,camera.position.z),0)+1.4;if(camera.position.y<gy)camera.position.y=gy;camera.lookAt(camT);
+  if(gunMode){const c=gunMode,sa=Math.sin(c.a),ca=Math.cos(c.a),gy0=groundAt(c.x,c.z),el=c.el??.22,sh=camShake*(Math.random()-.5)*.6;camShake=Math.max(0,camShake-dt*2);
+    camera.position.set(c.x-sa*3.4+sh,gy0+2.3+sh,c.z-ca*3.4);camera.lookAt(c.x+sa*30,gy0+1.6+Math.tan(el*.55)*30,c.z+ca*30);
+    const B=ballistic(c);const m=S.fx.mark;m.visible=true;m.position.set(B.x,Math.max(groundAt(B.x,B.z),0)+.25,B.z);m.material.color.set(c.cd>0?'#ff8a5a':'#ffd36a');m.scale.setScalar(1.2+B.t*.15);markT=.05;
+    $('mAim').style.display='block';$('mAimR').style.width=(100*(1-c.cd/3.2))+'%';$('mAimT').textContent=Math.round(Math.hypot(B.x-c.x,B.z-c.z))+' m'}
+  else{$('mAim').style.display='none';
+  camera.position.set(F.x+Math.sin(yaw)*Math.cos(cpE)*d,F.y+1.8+Math.sin(cpE)*d,F.z+Math.cos(yaw)*Math.cos(cpE)*d);const gy=Math.max(groundAt(camera.position.x,camera.position.z),0)+1.4;if(camera.position.y<gy)camera.position.y=gy;camera.lookAt(camT)}
+  for(const C of S.castles){const c=CS[C.k];if(c.ruined||c.hp>c.mhp*.6||Math.abs(C.x-F.x)>420||Math.abs(C.z-F.z)>420)continue;const k=1-c.hp/(c.mhp*.6);
+    if(Math.random()<dt*(1+k*4)){const tp=C.tops[Math.floor(Math.random()*4)]||C;smokeAt(tp.x+(Math.random()-.5)*4,(tp.y||groundAt(C.x,C.z)+8)+1,tp.z+(Math.random()-.5)*4,1,1.6+k*1.6,'#3e3834')}
+    if(k>.5&&Math.random()<dt*k*3){const a=Math.random()*6.283,r=Math.random()*CW;sparks(C.x+Math.cos(a)*r,groundAt(C.x,C.z)+2+Math.random()*6,C.z+Math.sin(a)*r,3,.7)}}
   drawSites(F.x,F.z,t);
   {vp.set(F.x,F.y+1.3,F.z);const dz=vp.clone().applyMatrix4(camera.matrixWorldInverse).z;vp.project(camera);const pr=renderer.getPixelRatio();FOC.value.set((vp.x+1)/2*innerWidth*pr,(vp.y+1)/2*innerHeight*pr,-dz,Math.min(innerWidth,innerHeight)*pr*.2)}
   updateGround(F.x,F.z);updateNodes(F.x,F.z,t);updateClutter(F.x,F.z,t);if(S.skyT)S.skyT.value=t;if(S.sky)S.sky.position.set(camera.position.x,0,camera.position.z);if(S.waterN){S.waterN.offset.x=t*.004;S.waterN.offset.y=t*.003;S.waterU.t.value=t}
@@ -634,9 +709,11 @@ function draw(dt,t){
     const txt=(o.lv>=10?'✨ ':'⚔️ ')+TL('Seviye ','Level ')+o.lv;const s=L.firstChild;if(s.textContent!==txt)s.textContent=txt;s.style.color=LVC[o.lv-1];L.lastChild.style.width='0px'}}
   for(let i=li;i<labs.length;i++)if(labs[i])labs[i].style.display='none';
   {const L=[];for(const p of PL){if(p.out)continue;for(const g of p.guns){if(!p.local&&g.tx!=null){const k=Math.min(1,dt*6);const ox=g.x,oz=g.z;g.x=lerp(g.x,g.tx,k);g.z=lerp(g.z,g.tz,k);g.a+=angD(g.a,g.ta)*Math.min(1,dt*6);g.wh+=Math.hypot(g.x-ox,g.z-oz)/.6}if(Math.abs(g.x-F.x)<320&&Math.abs(g.z-F.z)<320)L.push(g)}}cannonsDraw(L,t)}
+  RING.count=ringN;RING.instanceMatrix.needsUpdate=true;if(RING.instanceColor)RING.instanceColor.needsUpdate=true;ringN=0;
   chrFlush();hFlush();
+  guideArrow();
   for(let i=nums.length-1;i>=0;i--){const n=nums[i];n.t+=dt;if(n.t>1){n.el.remove();nums.splice(i,1);continue}vp.set(n.x,n.y+n.t*1.6,n.z).project(camera);n.el.style.left=((vp.x+1)/2*innerWidth)+'px';n.el.style.top=((1-vp.y)/2*innerHeight)+'px';n.el.style.opacity=1-n.t*n.t;n.el.style.display=vp.z<1?'block':'none'}
-  {const B=S.fx.bolt;let k=0;for(const b of bolts){if(k>=160)break;q.setFromUnitVectors(Z1,BD.set(b.dx,b.dy||0,b.dz).normalize());m4.compose(vp.set(b.x,b.y,b.z),q,vs.set(1,1,1));B.setMatrixAt(k++,m4)}B.count=k;B.instanceMatrix.needsUpdate=true}
+  {const B=S.fx.bolt;let k=0;for(const b of[...bolts,...stuck]){if(k>=280)break;q.setFromUnitVectors(Z1,BD.set(b.dx,b.dy||0,b.dz).normalize());m4.compose(vp.set(b.x,b.y,b.z),q,vs.set(1,1,1));B.setMatrixAt(k++,m4)}B.count=k;B.instanceMatrix.needsUpdate=true}
   if(markT>0){markT-=dt;S.fx.mark.visible=markT>0;S.fx.mark.material.opacity=Math.min(.8,markT);S.fx.mark.scale.setScalar(1+Math.max(0,1.5-markT)*.4)}
   drawChips(dt);renderer.render(scene,camera)}
 
@@ -650,11 +727,12 @@ function hud(t){
   const sol=ME.units.filter(o=>o.k>0&&!o.dead).length,ch=ME.home!=null?CS[ME.home]:null;$('mLv').textContent=`⚔️Sv${u?wLv(ME,u):1} 🛡️${ME.lv.z} · 👥${sol} · 🐎${ME.hs.length}${ch?' · 🏰'+Math.round(ch.hp/ch.mhp*100)+'%':''}`;
   $('mGold').textContent=`🪙 ${Math.floor(ME.gold)}`;
   for(const id of['mAct','mCmd','mGrp','mSide','mHp','mGold'])$(id).style.display=started&&!ME.out?'':'none';$('mJoyH').style.display=started&&!ME.out&&!joy&&matchMedia('(pointer:coarse)').matches?'':'none';
-  {const g=started&&!ME.out?gunNear(ME):null,tb=$('mTow');tb.style.display=g?'':'none';if(g){const tx=g.tow===0?TL('Çöz','Unhitch'):TL('Bağla','Hitch');if(tb.lastChild.textContent!==tx)tb.lastChild.textContent=tx}}
-  {const c0=ME.units[0],rb=$('mRide'),near=c0&&!c0.dead&&freeHorse(ME,c0.x,c0.z,4.5),can=c0&&!c0.dead&&(c0.horse||near||ME.hs.some(h=>h.rider==null));rb.style.display=can?'':'none';if(can){const tx=c0.horse?TL('İn','Dismount'):near?TL('Bin','Mount'):ME.hs.some(h=>h.call!=null)?TL('Geliyor','Coming'):TL('Çağır','Call');if(rb.lastChild.textContent!==tx)rb.lastChild.textContent=tx}}
+  {const g=started&&!ME.out?gunNear(ME):null,tb=$('mTow'),c0=ME.units[0];tb.style.display=g||gunMode?'':'none';if(g||gunMode){const tx=gunMode?TL('Çık','Leave'):g.tow===0?TL('Çöz','Unhitch'):c0&&c0.horse?TL('Bağla','Hitch'):TL('Kullan','Use');if(tb.lastChild.textContent!==tx)tb.lastChild.textContent=tx;tb.firstChild.textContent=gunMode?'🚪':c0&&c0.horse||g.tow===0?'💣':'🎯'}}
+  {const c0=ME.units[0],rb=$('mRide'),near=c0&&!c0.dead&&(freeHorse(ME,c0.x,c0.z,4.5)||foeHorse(ME,c0.x,c0.z,4.5)),can=c0&&!c0.dead&&(c0.horse||near||ME.hs.some(h=>h.rider==null));rb.style.display=can?'':'none';if(can){const tx=c0.horse?TL('İn','Dismount'):near?TL('Bin','Mount'):ME.hs.some(h=>h.call!=null)?TL('Geliyor','Coming'):TL('Çağır','Call');if(rb.lastChild.textContent!==tx)rb.lastChild.textContent=tx}}
   if(ME.capK!=null&&CS[ME.capK].cap){const c=CS[ME.capK];$('mTop').querySelector('small').textContent=TL(`🚩 Kale alınıyor: %${Math.round(c.cap.t/CAP_T*100)} — avluda kal`,`🚩 Taking the castle: ${Math.round(c.cap.t/CAP_T*100)}% — hold the yard`)}
   if(panel&&panel.draw)panel.draw();if(setup&&setup.draw)setup.draw();
   drawMini();if(mapOpen)drawMap(mapOpen.querySelector('canvas'),true);
+  guideTick();
   if(tipT>0){tipT-=.25;if(tipT<=0)$('mTip').style.opacity=0}
   if(started&&!ended&&!ME.out&&alive===1)endScreen(true);
   else if(started&&ME.out&&alive===1&&!hud.won){hud.won=1;const w=alivePlayers()[0];if(w)feed(TL(`🏆 ${w.name} kazandı!`,`🏆 ${w.name} won!`))}}
@@ -667,11 +745,12 @@ function tick(h,t){keyInput();
     const c0=p.units[0];if(c0&&c0.dead&&p.respawn&&t>=p.respawn&&p.home!=null&&!CS[p.home].ruined){p.respawn=0;const y=S.castles[p.home].yard;c0.dead=false;c0.horse=false;c0.hp=c0.mhp=UNIT[p.cmd].hp;c0.x=y.x;c0.z=y.z;c0.y=groundAt(y.x,y.z);c0.act=null;if(p===ME)tip(TL('Komutanın kalede dirildi','Your commander is back at the castle'),2)}
     else if(c0&&c0.dead&&(p.home==null||CS[p.home].ruined)){if(p.castles.length){p.home=p.castles[0]}else eliminate(p)}
     for(const u of p.units)stepUnit(p,u,h,t);horseTick(p,h);gunTick(p,h);captureTick(p,h);lootTick(p);siteTick(p)}
-  fireTick(h);cannonsTick(h,t);
+  fireTick(h);cannonsTick(h,t);boomTick(h);
   // castles: the towers shoot, the ring wears down castles left outside it
   const z=zoneAt(t);for(const c of CS){if(!castleLocal(c)||c.ruined)continue;castleDefend(c,h);if(c.owner!=null){c.art+=h;if(c.art>40){c.art=0;const i=c.ah.findIndex((v,j)=>v<=0&&j<archN(c));if(i>=0){c.ah[i]=ARCH_HP;send('ar',{c:c.k,i})}}}const C=CASTLES[c.k];if(outside(C.x,C.z,z.h)&&c.owner!=null)hurtCastle(c,h*z.d*4,null)}
   separate();
-  for(let i=bolts.length-1;i>=0;i--){const b=bolts[i];b.t+=h;const s=50*h;b.x+=b.dx*s;b.z+=b.dz*s;b.y+=(b.dy||0)*s;let hit=b.t>1.3||b.y<groundAt(b.x,b.z)-.2;
+  for(let i=stuck.length-1;i>=0;i--){if((stuck[i].t-=h)<=0)stuck.splice(i,1)}
+  for(let i=bolts.length-1;i>=0;i--){const b=bolts[i];b.t+=h;const s=50*h;b.x+=b.dx*s;b.z+=b.dz*s;if(b.t>.9)b.dy=(b.dy||0)-h*.55;b.y+=(b.dy||0)*s;const gy=groundAt(b.x,b.z);let hit=b.t>3||b.y<Math.max(gy,-.1)-.05;if(hit&&b.t<=3&&stuck.length<120)stuck.push({x:b.x,y:Math.max(gy,-.1)+.25,z:b.z,dx:b.dx,dy:b.dy||0,dz:b.dz,t:7});
     if(!hit&&!b.vis&&b.by&&b.y>4)for(const C of S.castles){if(Math.abs(b.x-C.x)>CW+5||Math.abs(b.z-C.z)>CW+5)continue;const c=CS[C.k];if(c.ruined||c.owner===b.by.ix)continue;const n=archN(c);
       for(let a=0;a<n;a++){if(c.ah[a]<=0)continue;const tp=C.tops[a];if(Math.hypot(tp.x-b.x,tp.z-b.z)<1.2&&b.y>tp.y-.3&&b.y<tp.y+2.6){hurtArcher(C.k,a,b.dmg,b.by.ix>=0?b.by:null);chips(b.x,b.y,b.z,'#ffe8b0',3);hit=true;break}}if(hit)break}
     if(!hit&&!b.vis&&b.by){if(b.castle!=null){const C=CASTLES[b.castle];if(Math.abs(b.x-C.x)<CW+1&&Math.abs(b.z-C.z)<CW+1){hit=true;const c=CS[b.castle];if(castleLocal(c))hurtCastle(c,b.dmg,b.by.ix>=0?b.by:null);else send('ch',{c:c.k,d:+b.dmg.toFixed(1),by:b.by.ix})}}
@@ -690,5 +769,5 @@ let lastF=performance.now(),fps=60,slowT=0,fastT=0,dpr=renderer.getPixelRatio();
 function frame(){requestAnimationFrame(frame);const now=performance.now(),dt=Math.min(.1,(now-lastF)/1000);lastF=now;fps=lerp(fps,1/Math.max(dt,.001),.05);slowT=fps<(SMALL?45:30)?slowT+dt:0;fastT=fps>55?fastT+dt:0;if(slowT>3&&dpr>1){dpr=Math.max(1,dpr-.25);renderer.setPixelRatio(dpr);renderer.setSize(innerWidth,innerHeight,false);slowT=0}else if(fastT>8&&dpr<DPR0){dpr=Math.min(DPR0,dpr+.25);renderer.setPixelRatio(dpr);renderer.setSize(innerWidth,innerHeight,false);fastT=0}
   try{draw(dt,gtime())}catch(e){console.error(e)}}
 requestAnimationFrame(frame);
-window.__M={toggleTow,gunNear,_T,fx:{craterAdd,fireAdd,shellAdd,explodeFx},setHorse,buy,groundAt,siteVia,CHESTS,SITES,giveWeapon,siteAt,viaGate,localIn,fast:sec=>{for(let i=0;i<sec*20;i++){T0-=50;const t=gtime();tick(.05,t);if(i%20===0&&started)for(const p of PL)if(p.bot&&p.local)botPlan(p,t);if(i%5===0)hud(t)}},cam:(a,b,c)=>{cy=a;cp=b;cd=c},skip:s=>{T0-=s*1000},PL,ME,CS,S,zoneAt,gtime,action,input,setMode,buy,tapOrder,wantCastle,setHorse};
+window.__M={enterGun,leaveGun,gunFire,ruin,foeHorse,toggleTow,gunNear,_T,fx:{craterAdd,fireAdd,shellAdd,explodeFx},setHorse,buy,groundAt,siteVia,CHESTS,SITES,giveWeapon,siteAt,viaGate,localIn,fast:sec=>{for(let i=0;i<sec*20;i++){T0-=50;const t=gtime();tick(.05,t);if(i%20===0&&started)for(const p of PL)if(p.bot&&p.local)botPlan(p,t);if(i%5===0)hud(t)}},cam:(a,b,c)=>{cy=a;cp=b;cd=c},skip:s=>{T0-=s*1000},PL,ME,CS,S,zoneAt,gtime,action,input,setMode,buy,tapOrder,wantCastle,setHorse};
 window.READY=true;

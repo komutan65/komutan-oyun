@@ -271,7 +271,7 @@ export function drawZone(h,t){const {ws,m}=S.zone;m.uniforms.t.value=t;const H=1
 
 // ---------- bolts, chips, a ring under the target ----------
 export function makeFx(){
-  const bolt=new THREE.InstancedMesh(merge([col(new THREE.CylinderGeometry(.03,.03,1,4).rotateX(Math.PI/2),'#6b4a2e'),col(new THREE.ConeGeometry(.07,.2,4).rotateX(Math.PI/2).translate(0,0,.55),'#cfd3d6')]),new THREE.MeshLambertMaterial({vertexColors:true}),160);bolt.count=0;bolt.frustumCulled=false;S.scene.add(bolt);
+  const bolt=new THREE.InstancedMesh(merge([col(new THREE.CylinderGeometry(.03,.03,1,4).rotateX(Math.PI/2),'#6b4a2e'),col(new THREE.ConeGeometry(.07,.2,4).rotateX(Math.PI/2).translate(0,0,.55),'#cfd3d6')]),new THREE.MeshLambertMaterial({vertexColors:true}),280);bolt.count=0;bolt.frustumCulled=false;S.scene.add(bolt);
   const chip=new THREE.InstancedMesh(new THREE.BoxGeometry(.13,.13,.13),new THREE.MeshLambertMaterial({color:'#fff'}),400);chip.count=0;chip.frustumCulled=false;chip.setColorAt(0,new THREE.Color('#fff'));S.scene.add(chip);
   const ring=new THREE.Mesh(new THREE.RingGeometry(.9,1.1,32).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:'#ffe08a',transparent:true,opacity:.7,depthWrite:false}));ring.visible=false;S.scene.add(ring);
   const mark=new THREE.Mesh(new THREE.RingGeometry(1.4,2,40).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:'#ffffff',transparent:true,opacity:.8,depthWrite:false}));mark.visible=false;S.scene.add(mark);

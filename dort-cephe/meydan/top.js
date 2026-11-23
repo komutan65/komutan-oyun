@@ -26,11 +26,13 @@ export function makeCannons(){
   const smoke=mk(new THREE.IcosahedronGeometry(1,2),260,new THREE.MeshLambertMaterial({color:'#ffffff',transparent:true,opacity:.26,depthWrite:false}),false);smoke.setColorAt(0,tc.set('#fff'));
   T={body:mk(body,CAP),wheel:mk(wheel,CAP*2),shaft:mk(shaft,CAP),ball,crater,flame,smoke,shells:[],craters:[],fires:[],parts:[]}}
 // a ball in flight from (x0,y0,z0) to (x1,z1), arriving after dur seconds; on landing hit(x,z) is called
-export function shellAdd(x0,y0,z0,x1,z1,dur,hit){if(!T)return;T.shells.push({x0,y0,z0,x1,z1,y1:groundAt(x1,z1),t:0,dur,hit});puff(x0,y0,z0,10,2.2,'#e8e2d6',.9);burst(x0,y0,z0,6,.9)}
+export function shellAdd(x0,y0,z0,x1,z1,dur,hit,apex){if(!T)return;T.shells.push({x0,y0,z0,x1,z1,y1:Math.max(groundAt(x1,z1),-.2),t:0,dur,hit,apex});puff(x0,y0,z0,10,2.2,'#e8e2d6',.9);burst(x0,y0,z0,6,.9)}
 export function craterAdd(x,z,r){if(!T)return;if(T.craters.length>=90)T.craters.shift();const d=1.2,nx=groundAt(x-d,z)-groundAt(x+d,z),nz=groundAt(x,z-d)-groundAt(x,z+d);T.craters.push({x,z,y:groundAt(x,z),r,a:Math.random()*6.283,nx:nx/(2*d),nz:nz/(2*d)})}
 // a fire burning on the ground for 'life' seconds
 export function fireAdd(x,z,life,r=1.6){if(!T)return;if(T.fires.length>=24)T.fires.shift();T.fires.push({x,z,y:groundAt(x,z),t:0,life,r})}
 export const fires=()=>T?T.fires:[];
+export function smokeAt(x,y,z,n=1,size=1.4,c='#4a4440'){if(T)puff(x,y,z,n,1.2,c,size)}
+export function sparks(x,y,z,n=10,size=.9){if(T)burst(x,y,z,n,size)}
 function puff(x,y,z,n,sp,c,size){for(let i=0;i<n;i++){if(T.parts.length>=560)T.parts.shift();T.parts.push({k:1,x,y,z,vx:(Math.random()-.5)*sp,vy:.6+Math.random()*sp*.5,vz:(Math.random()-.5)*sp,t:0,life:1.6+Math.random()*1.4,s:size*(.6+Math.random()*.6),c})}}
 function burst(x,y,z,n,size){for(let i=0;i<n;i++){if(T.parts.length>=560)T.parts.shift();T.parts.push({k:0,x,y,z,vx:(Math.random()-.5)*6,vy:1+Math.random()*4,vz:(Math.random()-.5)*6,t:0,life:.35+Math.random()*.3,s:size*(.5+Math.random()*.7),c:Math.random()<.5?'#ffd27a':'#ff7a2a'})}}
 export function explodeFx(x,z){if(!T)return;const y=groundAt(x,z);burst(x,y+.6,z,16,1.4);puff(x,y+.5,z,16,4,'#5a5148',1.3);puff(x,y+.3,z,10,6,'#8a6a48',.7)}
@@ -50,7 +52,7 @@ export function cannonsDraw(list,t){if(!T)return;let b=0,w=0,sh=0;
     for(const sd of[-1,1]){m5.compose(vp.set(sd*.68,.6,.15),q2.setFromAxisAngle(XA,c.wh||0),vs.set(1,1,1));T.wheel.setMatrixAt(w++,m5.premultiply(m4))}
     if(c.hx!=null){const dx=c.hx-c.x,dz=c.hz-c.z,L=Math.hypot(dx,dz);if(L>.5){q.setFromAxisAngle(UP,Math.atan2(dx,dz));const sx=c.x-Math.sin(c.a)*2.5,sz=c.z-Math.cos(c.a)*2.5,L2=Math.hypot(c.hx-sx,c.hz-sz);q.setFromAxisAngle(UP,Math.atan2(c.hx-sx,c.hz-sz));m5.compose(vp.set(sx,y+.4,sz),q,vs.set(1,1,Math.max(.2,L2-1.2)));T.shaft.setMatrixAt(sh++,m5)}}}
   T.body.count=b;T.wheel.count=w;T.shaft.count=sh;for(const m of[T.body,T.wheel,T.shaft])m.instanceMatrix.needsUpdate=true;
-  let n=0;for(const s of T.shells){const k=s.t/s.dur,x=s.x0+(s.x1-s.x0)*k,z=s.z0+(s.z1-s.z0)*k,y=s.y0+(s.y1-s.y0)*k+Math.sin(k*Math.PI)*(4+s.dur*9);m4.makeTranslation(x,y,z);T.ball.setMatrixAt(n++,m4)}T.ball.count=n;T.ball.instanceMatrix.needsUpdate=true;
+  let n=0;for(const s of T.shells){const k=s.t/s.dur,x=s.x0+(s.x1-s.x0)*k,z=s.z0+(s.z1-s.z0)*k,y=s.y0+(s.y1-s.y0)*k+(s.apex!=null?4*s.apex*k*(1-k):Math.sin(k*Math.PI)*(4+s.dur*9));m4.makeTranslation(x,y,z);T.ball.setMatrixAt(n++,m4)}T.ball.count=n;T.ball.instanceMatrix.needsUpdate=true;
   n=0;for(const c of T.craters){q.setFromUnitVectors(UP,vp.set(c.nx,1,c.nz).normalize());q2.setFromAxisAngle(UP,c.a);q.multiply(q2);m4.compose(vp.set(c.x,c.y+.06,c.z),q,vs.set(c.r,1,c.r));T.crater.setMatrixAt(n++,m4)}T.crater.count=n;T.crater.instanceMatrix.needsUpdate=true;
   let f=0,s2=0;for(const p of T.parts){const k=p.t/p.life;if(p.k===0){if(f>=320)continue;const sc=p.s*(1-k*.7);m4.compose(vp.set(p.x,p.y,p.z),q.identity(),vs.set(sc,sc*1.3,sc));T.flame.setMatrixAt(f,m4);T.flame.setColorAt(f++,tc.set(p.c).multiplyScalar(1-k*.6))}
     else{if(s2>=260)continue;const sc=p.s*(.6+k*1.4);m4.compose(vp.set(p.x,p.y,p.z),q.identity(),vs.set(sc,sc,sc));T.smoke.setMatrixAt(s2,m4);T.smoke.setColorAt(s2++,tc.set(p.c).multiplyScalar(1-k*.35))}}

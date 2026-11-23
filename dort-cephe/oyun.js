@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import {SES} from './ses.js?v=20261123h';
-import {loadHorses} from './meydan/at.js?v=20261123h';
+import {SES} from './ses.js?v=20261123i';
+import {loadHorses} from './meydan/at.js?v=20261123i';
 /* Dört Cephe. Each client simulates its own square (and any computer rivals);
    units sent to a player are simulated by that player. Others see 2 snapshots a second. */
 const A=window.ARENA,EN=window.LANG==='en',TL=(t,e)=>EN?e:t;
@@ -11,7 +11,7 @@ const num=(v,d=0)=>typeof v==='number'&&isFinite(v)?v:d;
 // ---------- rules ----------
 let BUILD_T={denizalti:16,gemi:20},TBUILD={ok:7,top:10,hava:9,roket:14,duvar:2.5},WMAX=12,RUNWAY_COST=200,MS_COST=100,MS_T=10,MS_HP=120,RUNWAY_T=12,YARD_COST=100,YARD_T=15,MAX_SHIPS=4,PLANE_T=12,SHIP_SEE=80,SHIP_STAND=95,SUB_TIME=16,WALL=3,START_MONEY=200*2.5,CASTLE_HP=500,TRICKLE=0.5,MAX_TOWERS=40;
 // a base trains one soldier at a time and fields a limited army, so nobody can flood the map
-let TRAIN={piyade:2,atli:3,koc:7,balon:6},POP={piyade:1,atli:1,koc:3,balon:2},POP_CAP=40,FUZE_CD=6,DBR_FIX=100,VER='51';
+let TRAIN={piyade:2,atli:3,koc:7,balon:6},POP={piyade:1,atli:1,koc:3,balon:2},POP_CAP=40,FUZE_CD=6,DBR_FIX=100,VER='52';
 // the lesson: an empty 1v1 map where nothing costs anything and nothing has to be waited for
 const TUT=!!(A&&A.tutorial);
 if(TUT){BUILD_T={denizalti:.5,gemi:.5};for(const k in TBUILD)TBUILD[k]=.2;RUNWAY_T=YARD_T=PLANE_T=.5;FUZE_CD=.5;TRAIN={piyade:.2,atli:.2,koc:.2,balon:.2}}
@@ -2189,7 +2189,7 @@ const CHR_DEF={piyade:{tex:'knight'},dalgic:{tex:'rogue'},isci:{tex:'barbarian'}
 // a soft warm rim of light round every figure, so they stand out from the ground like painted miniatures
 const RIM='{float rim=pow(1.-clamp(dot(normal,normalize(vViewPosition)),0.,1.),2.6);outgoingLight+=rim*.38*vec3(1.,.93,.8)*(.5+.5*diffuseColor.rgb);outgoingLight=mix(vec3(dot(outgoingLight,vec3(.299,.587,.114))),outgoingLight,1.12);}\n';
 function chrMat(tex,cut){const m=new THREE.MeshStandardMaterial({color:'#ffffff',roughness:.72,metalness:.05,vertexColors:!tex});
-  if(tex){const t=new THREE.TextureLoader().load('model/'+tex+'_texture.png?v='+VER);t.colorSpace=THREE.SRGBColorSpace;t.flipY=false;t.magFilter=THREE.NearestFilter;t.minFilter=THREE.LinearMipmapLinearFilter;m.map=t}
+  if(tex){const t=new THREE.TextureLoader().load('model/'+tex+'_texture.png?v='+VER);t.colorSpace=THREE.SRGBColorSpace;t.flipY=false;t.magFilter=THREE.LinearFilter;t.minFilter=THREE.LinearMipmapLinearFilter;t.anisotropy=4;m.map=t}
   if(tex)m.onBeforeCompile=sh=>{sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nattribute float aTeam;varying float vTeam;varying vec3 vTint;varying float vOY;').replace('#include <begin_vertex>','#include <begin_vertex>\nvTeam=aTeam;vOY=position.y;\n#ifdef USE_INSTANCING_COLOR\nvTint=instanceColor.rgb;\n#else\nvTint=vec3(1.);\n#endif\n');
     sh.fragmentShader=sh.fragmentShader.replace('void main() {','void main() {'+(cut?'\nif(vOY<.62)discard;':'')).replace('#include <common>','#include <common>\nvarying float vTeam;varying vec3 vTint;varying float vOY;').replace('#include <color_fragment>','diffuseColor.rgb=mix(diffuseColor.rgb,mix(vec3(dot(diffuseColor.rgb,vec3(.3,.59,.11))),diffuseColor.rgb,.25)*vTint*1.9,vTeam);').replace('#include <opaque_fragment>',RIM+'#include <opaque_fragment>')};     // only the cloak takes the team colour
   m.customProgramCacheKey=()=>cut?'chr4-cut':'chr4';return m}
@@ -2340,6 +2340,8 @@ function drawUnits(rdt){
         mt.compose(vp.set(0,0,0),qr.setFromAxisAngle(UP,H.rot+(moving?0:Math.sin(T*.7+sd*9)*.04)),vs.set(H.s,H.s*(1+br*.012),H.s*(1-br*.004)));mo.copy(mx).multiply(mt);vs.set(1,1,1);
         const coat=COATS[Math.floor(sd*97)%COATS.length];if(moving)chrPush('at','walk',T*1.25+sd,mo,-1,coat);else chrPush('at','idle',T*.22+sd,mo,-1,coat);
         mt.compose(vp.set(0,H.ry+bob+br*.02,H.rz),qr.setFromAxisAngle(XA,moving?.12:0),vs.set(H.rs,H.rs,H.rs));mo.copy(mx).multiply(mt);vs.set(1,1,1);chrPush('binici',atk!=null?'atk':'idle',atk!=null?atk:T*.3+sd,mo,from);return}
+      // two ways to swing, in turn: the cut across, and a rising backhand with a twist of the body and a step in
+      if(atk!=null&&type==='piyade'&&(curId+Math.floor(now()/1300))%2){const k=Math.sin(atk*Math.PI);mt.compose(vt.set(0,0,.3*k),qr.setFromAxisAngle(UP,.5*k),vs.set(1,1,1));mo.copy(mx).multiply(mt);chrPush(type,'atk',.999-atk*.94,mo,from);return}
       chrPush(type,atk!=null?'atk':moving?'walk':'idle',atk!=null?atk:moving?T*(type==='dalgic'?1.6:1.05)+sd:T*.35+sd,mx,from,type==='dalgic'?SUITC[from]:undefined);return}
     if(type==='balon'||type==='ucak'){const sx=x,sz=z;blobAt(sx,sz,type==='balon'?3.4:3)}
     const i=n[type];if(i>=CAP)return;n[type]++;
