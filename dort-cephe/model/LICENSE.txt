@@ -7,3 +7,7 @@
 - t_pine / t_broad trees and hexagons_medieval.png:
   "KayKit : Medieval Hexagon Pack (1.0)" by Kay Lousberg (www.kaylousberg.com), CC0.
 - k_tower: building_tower_base from "KayKit : Medieval Hexagon Pack (1.0)", CC0.
+
+- at.bin (the horse, baked into animation frames with a saddle and the rider's legs added):
+  Horse from "Farm Animals Pack" by Quaternius (quaternius.com)
+  License: Creative Commons Zero (CC0) - http://creativecommons.org/publicdomain/zero/1.0/

@@ -7,17 +7,17 @@ export const S={};
 
 // the shadow box follows the player, stepped in whole shadow-map texels as seen from the sun, so shadow edges never crawl or flicker
 const SUN_D=new THREE.Vector3(-120,180,90).normalize(),SU=new THREE.Vector3().crossVectors(SUN_D,new THREE.Vector3(0,1,0)).normalize(),SV=new THREE.Vector3().crossVectors(SU,SUN_D).normalize(),SP=new THREE.Vector3();
-export function placeSun(x,y,z){const sun=S.sun,tex=190/sun.shadow.mapSize.x;SP.set(x,y,z);let a=SP.dot(SU),b=SP.dot(SV);const c=SP.dot(SUN_D);a=Math.round(a/tex)*tex;b=Math.round(b/tex)*tex;
+export function placeSun(x,y,z){const sun=S.sun,tex=160/sun.shadow.mapSize.x;SP.set(x,y,z);let a=SP.dot(SU),b=SP.dot(SV);const c=SP.dot(SUN_D);a=Math.round(a/tex)*tex;b=Math.round(b/tex)*tex;
   SP.copy(SU).multiplyScalar(a).addScaledVector(SV,b).addScaledVector(SUN_D,c);sun.target.position.copy(SP);sun.position.copy(SP).addScaledVector(SUN_D,330);sun.target.updateMatrixWorld()}
 export function makeScene(cv,small){
-  const renderer=new THREE.WebGLRenderer({canvas:cv,antialias:!small,powerPreference:'high-performance'});
-  renderer.setPixelRatio(Math.min(devicePixelRatio||1,small?1.3:1.6));renderer.setSize(innerWidth,innerHeight,false);
+  const renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true,powerPreference:'high-performance'});
+  renderer.setPixelRatio(Math.min(devicePixelRatio||1,small?1.6:1.75));renderer.setSize(innerWidth,innerHeight,false);
   renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFShadowMap;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.08;
-  const scene=new THREE.Scene(),SKY=new THREE.Color('#c3d8e6');scene.background=SKY;scene.fog=new THREE.Fog(SKY,small?380:480,small?1500:1900);
+  const scene=new THREE.Scene(),SKY=new THREE.Color('#c3d8e6');scene.background=SKY;scene.fog=new THREE.Fog(SKY,small?620:820,small?2300:2900);
   const camera=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,.5,3400);
   scene.add(new THREE.HemisphereLight('#dfeaff','#4f5f35',1.0));
-  const sun=new THREE.DirectionalLight('#fff0d6',2.5);sun.position.set(-120,180,90);sun.castShadow=true;const sz=small?1024:2048;sun.shadow.mapSize.set(sz,sz);
-  const sc=sun.shadow.camera;sc.left=-95;sc.right=95;sc.top=95;sc.bottom=-95;sc.near=10;sc.far=700;sun.shadow.bias=-.0009;sun.shadow.normalBias=.7;scene.add(sun,sun.target);
+  const sun=new THREE.DirectionalLight('#fff0d6',2.5);sun.position.set(-120,180,90);sun.castShadow=true;const sz=2048;sun.shadow.mapSize.set(sz,sz);
+  const sc=sun.shadow.camera;sc.left=-80;sc.right=80;sc.top=80;sc.bottom=-80;sc.near=10;sc.far=700;sun.shadow.bias=-.0004;sun.shadow.normalBias=.32;sun.shadow.radius=2.5;scene.add(sun,sun.target);
   const fill=new THREE.DirectionalLight('#a9c0ff',.38);fill.position.set(120,60,-100);scene.add(fill);
   // sky dome with a soft sun and a few painted clouds
   {const g=new THREE.SphereGeometry(3200,32,16),m=new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,fog:false,uniforms:{sd:{value:new THREE.Vector3(-120,180,90).normalize()}},
@@ -50,7 +50,7 @@ function groundMat(tex,far){const m=new THREE.MeshLambertMaterial({vertexColors:
     // the grain at two scales, so no tiling shows; far from the eye it fades to the plain colour
     sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec2 vW;varying float vD;').replace('#include <begin_vertex>','#include <begin_vertex>\nvW=(modelMatrix*vec4(position,1.)).xz;vD=-(modelViewMatrix*vec4(position,1.)).z;');
     let f=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying vec2 vW;varying float vD;'+(far?'uniform vec2 uC;uniform float uR;':''))
-      .replace('#include <map_fragment>','{vec4 a=texture2D(map,vW/6.);vec4 b=texture2D(map,vW/41.+.37);vec3 t=a.rgb*b.rgb*1.18;diffuseColor.rgb*=mix(t,vec3(.93),smoothstep(60.,260.,vD));}');
+      .replace('#include <map_fragment>','{vec4 a=texture2D(map,vW/6.);vec4 b=texture2D(map,vW/41.+.37);vec3 t=a.rgb*b.rgb*1.18;diffuseColor.rgb*=mix(t,vec3(.93),smoothstep(120.,520.,vD));}');
     if(far){sh.uniforms.uC=U.c;sh.uniforms.uR=U.r;f=f.replace('void main() {','void main() {\nif(max(abs(vW.x-uC.x),abs(vW.y-uC.y))<uR)discard;')}
     sh.fragmentShader=f};
   return{m,U}}
@@ -64,7 +64,7 @@ function groundGeo(x0,z0,size,n,useGrid){const st=size/n,N=n+1,H=new Float32Arra
 const CHUNK=120,CN=HALF*2/CHUNK,NEAR=2;
 export function makeGround(){const {scene,small}=S,tex=detailTex();
   const near=groundMat(tex,false),far=groundMat(tex,true);
-  const fm=new THREE.Mesh(groundGeo(-HALF-60,-HALF-60,HALF*2+120,small?180:230),far.m);scene.add(fm);
+  const fm=new THREE.Mesh(groundGeo(-HALF-60,-HALF-60,HALF*2+120,small?220:270),far.m);scene.add(fm);
   S.ground={mat:near.m,U:far.U,chunks:new Map(),queue:[],cx:null,cz:null};
   const nc=document.createElement('canvas');nc.width=nc.height=128;{const g=nc.getContext('2d'),id=g.createImageData(128,128);for(let j=0;j<128;j++)for(let i=0;i<128;i++){const a=Math.sin(i/128*6.283*3+Math.sin(j/128*6.283*2)*1.3),b=Math.sin(j/128*6.283*4+Math.sin(i/128*6.283*3)*1.1),k=(j*128+i)*4;id.data[k]=128+a*38;id.data[k+1]=128+b*38;id.data[k+2]=255;id.data[k+3]=255}g.putImageData(id,0,0)}
   const nt=new THREE.CanvasTexture(nc);nt.wrapS=nt.wrapT=THREE.RepeatWrapping;nt.repeat.set(160,160);
@@ -106,7 +106,12 @@ export function nodeGeos(){
   const blob=merge([grad(jitter(new THREE.IcosahedronGeometry(2.3,0),.25,41).scale(1.1,.95,1.1).translate(0,3.8,0),'#2c5522','#6a9e42',1.6,6),col(new THREE.CylinderGeometry(.25,.32,2.2,3,1,true).translate(0,1.1,0),'#4a3322')]);
   return[pine,oak,rock,iron,gold,bush,stump,cone,blob]}
 // leaves sway in the wind (more at the top); the far copies too, so nothing jumps when they swap
-function swayMat(){const m=new THREE.MeshLambertMaterial({vertexColors:true});const T={value:0};m.onBeforeCompile=sh=>{sh.uniforms.uT=T;sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nuniform float uT;').replace('#include <begin_vertex>','#include <begin_vertex>\n#ifdef USE_INSTANCING\n{vec4 wp=instanceMatrix*vec4(0.,0.,0.,1.);float k=max(0.,position.y-1.5)*.035;transformed.x+=sin(uT*1.3+wp.x*.05+wp.z*.07)*k;transformed.z+=cos(uT*1.1+wp.x*.06)*k*.7;}\n#endif\n')};m.userData.T=T;return m}
+// the commander's place on screen (pixels), his depth and a radius: trees in front of him there dissolve
+export const FOC={value:new THREE.Vector4(-1e4,-1e4,0,1)};
+// and a tree right in front of the camera dissolves, so it never hides the commander
+function swayMat(){const m=new THREE.MeshLambertMaterial({vertexColors:true});const T={value:0};m.onBeforeCompile=sh=>{sh.uniforms.uT=T;
+    sh.uniforms.uFoc=FOC;sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying float vCamD;uniform vec4 uFoc;').replace('#include <clipping_planes_fragment>','#include <clipping_planes_fragment>\n{float k=smoothstep(5.,13.,vCamD);if(vCamD<uFoc.z-2.){float r=length(gl_FragCoord.xy-uFoc.xy)/uFoc.w;k=min(k,mix(.08,1.,smoothstep(.55,1.,r)));}if(k<1.&&fract(sin(dot(floor(gl_FragCoord.xy),vec2(12.9898,78.233)))*43758.5453)>k)discard;}');
+    sh.vertexShader=sh.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\nvCamD=-mvPosition.z;').replace('#include <common>','#include <common>\nuniform float uT;varying float vCamD;').replace('#include <begin_vertex>','#include <begin_vertex>\n#ifdef USE_INSTANCING\n{vec4 wp=instanceMatrix*vec4(0.,0.,0.,1.);float k=max(0.,position.y-1.5)*.035;transformed.x+=sin(uT*1.3+wp.x*.05+wp.z*.07)*k;transformed.z+=cos(uT*1.1+wp.x*.06)*k*.7;}\n#endif\n')};m.userData.T=T;return m}
 const NEAR_T=230,ROCK_R=420,FAR_T=S_FAR();function S_FAR(){return S.small?950:1150}
 export function makeNodes(){const geos=nodeGeos(),mat=swayMat(),rmat=new THREE.MeshLambertMaterial({vertexColors:true}),small=S.small;
   const list=[],BK=40,BN=HALF*2/BK,B=Array.from({length:BN*BN},()=>[]);
@@ -176,10 +181,10 @@ export function makeCastles(){const tex=brickTex(),stoneM=new THREE.MeshLambertM
     const tops=[];const TH=v===0?12:v===1?12.6:13.5;
     for(const[x,z]of[[-L,-L],[L,-L],[-L,L],[L,L]]){
       if(v===0){add(lower,tcyl(3,3.4,4,14,ST),x,2,z);add(upper,tcyl(3,3,7,14,ST),x,7.5,z);add(upper,tcyl(3.4,3,1,14,CAP),x,11.5,z);for(let k=0;k<10;k+=2){const a=k/10*6.283;add(upper,tbox(.7,.9,.5,CAP),x+Math.cos(a)*3.1,12.4,z+Math.sin(a)*3.1,-a)}
-        const r=new THREE.ConeGeometry(3.7,4.6,14);r.translate(x,14.3+.6,z);roof.push(col(r,'#ffffff'))}
+        {const fl=new THREE.CylinderGeometry(2.9,2.9,.3,14);fl.translate(x,11.9,z);upper.push(col(fl,CAP))}}
       else if(v===1){add(lower,tbox(6.2,4,6.2,ST),x,2,z);add(upper,tbox(6,8,6,ST),x,8,z);add(upper,tbox(6.6,.6,6.6,CAP),x,12.2,z);for(const[ox,oz]of[[-2.6,-2.6],[0,-2.6],[2.6,-2.6],[-2.6,0],[2.6,0],[-2.6,2.6],[0,2.6],[2.6,2.6]])add(upper,tbox(.8,1,.8,CAP),x+ox,13,z+oz,0)}
       else{add(lower,tcyl(3.4,3.8,4.5,8,ST),x,2.25,z);add(upper,tcyl(3.4,3.4,8.2,8,ST),x,8.6,z);add(upper,tcyl(3.8,3.4,1,8,CAP),x,13.1,z);for(let k=0;k<8;k+=2){const a=k/8*6.283+.39;add(upper,tbox(.9,1,.5,CAP),x+Math.cos(a)*3.5,14,z+Math.sin(a)*3.5,-a)}
-        const r=new THREE.ConeGeometry(4,7,8);r.rotateY(.39);r.translate(x,17.1,z);roof.push(col(r,'#ffffff'))}
+        {const fl=new THREE.CylinderGeometry(3.3,3.3,.3,8);fl.rotateY(.39);fl.translate(x,13.5,z);upper.push(col(fl,CAP))}}
       tops.push({x,y:TH,z});const p=W(x,z);segs.push([p.x,p.z,p.x,p.z,3.6])}
     for(const sd of[-1,1]){add(lower,tbox(3.4,4,3.4,ST),sd*4.9,2,L,0);add(upper,tbox(3.4,H-.5,3.4,ST),sd*4.9,4+(H-.5)/2,L,0);for(const[ox,oz]of[[-1.2,-1.2],[1.2,-1.2],[-1.2,1.2],[1.2,1.2]])add(upper,tbox(.7,.9,.7,CAP),sd*4.9+ox,H+4.2,L+oz,0)}
     add(upper,tbox(6.4,2.4,2.2,ST),0,H+.2,L,0);for(let k=-2;k<=2;k++){const g=new THREE.BoxGeometry(.12,1.4,.12);g.translate(k*1.1,H-1.5,L+.6);upper.push(col(g,'#2a2420'))}{const g=new THREE.BoxGeometry(5.2,.14,.12);g.translate(0,H-2,L+.6);upper.push(col(g,'#2a2420'))}
@@ -200,6 +205,7 @@ export function makeCastles(){const tex=brickTex(),stoneM=new THREE.MeshLambertM
     const mk=(arr,mat)=>{const g=merge(arr,true);const m=new THREE.Mesh(g,mat);m.position.set(C.x,C.y-.3,C.z);m.rotation.y=C.a;m.castShadow=m.receiveShadow=true;S.scene.add(m);return m};
     const lo=mk(lower,stoneM),up=mk(upper,stoneM),rm=new THREE.MeshLambertMaterial({vertexColors:true,color:'#9a9a9a'}),ro=mk(roof,rm),ru=mk(rub,new THREE.MeshLambertMaterial({vertexColors:true}));ru.visible=false;
     const gate=W(0,L+5),yard=W(0,6),ch=W(-8.5,8),stable=[0,1,2,3,4].map(i=>{const w=W(L-4.2,-9+i*3.6);return{x:w.x,z:w.z,a:C.a-Math.PI/2}});
+    up.userData.m0=stoneM;lo.userData.m0=stoneM;
     list.push({...C,lo,up,ro,ru,rm,segs,gate,yard,W,v,tops:tops.map(t=>{const w=W(t.x,t.z);return{x:w.x,y:C.y-.3+t.y,z:w.z}}),chest:{x:ch.x,z:ch.z,a:C.a},stable})}
   // the treasure chests, one in each castle yard, and the gold heaped in them
   const body=merge([col(new THREE.BoxGeometry(1.3,.75,.85).translate(0,.375,0),'#7a4f2a'),col(new THREE.BoxGeometry(1.36,.1,.9).translate(0,.2,0),'#c9a640'),col(new THREE.BoxGeometry(1.36,.1,.9).translate(0,.6,0),'#c9a640')]);
@@ -211,6 +217,9 @@ export function makeCastles(){const tex=brickTex(),stoneM=new THREE.MeshLambertM
 export function drawChests(gold){const {CB,CL,CG}=S.chestM;let g=0;S.castles.forEach((c,i)=>{const y=groundAt(c.chest.x,c.chest.z);q.setFromAxisAngle(UP,c.chest.a);m4.compose(vp.set(c.chest.x,y,c.chest.z),q,vs.set(1,1,1));CB.setMatrixAt(i,m4);
   const open=gold[i]>0;const lm=new THREE.Matrix4().makeTranslation(0,.75,-.43).multiply(new THREE.Matrix4().makeRotationX(open?-1.9:0)).multiply(new THREE.Matrix4().makeTranslation(0,0,.43));     /* the lid swings back on its hinge */CL.setMatrixAt(i,m4.clone().multiply(lm));if(open)CG.setMatrixAt(g++,m4)});
   CG.count=g;for(const m of[CB,CL,CG])m.instanceMatrix.needsUpdate=true}
+// f: 1 solid .. ~.15 nearly clear (the walls and roofs between the camera and the commander)
+export function castleFade(k,f){const c=S.castles[k];if(!c.upT){c.upT=c.up.material.clone();c.upT.transparent=true;c.upT.depthWrite=false;c.roT=c.rm.clone();c.roT.transparent=true;c.roT.depthWrite=false;c.loT=c.upT}
+  const see=f<.97;c.up.material=see?c.upT:c.up.userData.m0;c.ro.material=see?c.roT:c.rm;c.upT.opacity=f;c.roT.opacity=f;c.roT.color.copy(c.rm.color);c.up.castShadow=true}
 export function castleLook(k,colr,ruined){const c=S.castles[k];c.rm.color.copy(colr);c.up.visible=!ruined;c.ro.visible=!ruined;c.ru.visible=!!ruined;c.lo.scale.y=ruined?.55:1}
 
 // ---------- the closing ring: four tall shimmering walls that close in from the edges of the map ----------
