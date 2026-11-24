@@ -1,7 +1,7 @@
 /* Büyük Harita — drawing the world: the far land as one light mesh, sharp ground near the player,
    lakes, forests drawn across the whole map (detailed near, simple far), castles, the closing ring. */
 import * as THREE from 'three';
-import {HALF,height,groundCol,NODE,nodeAt,NC,CASTLES} from './dunya.js';
+import {HALF,height,groundCol,NODE,nodeAt,NC,CASTLES} from './dunya.js?v=20261124a';
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 export const S={};
 
@@ -79,14 +79,16 @@ export function makeGround(){const {scene,small}=S,tex=detailTex();
   const DN=512,dd=new Uint8Array(DN*DN);for(let j=0;j<DN;j++)for(let i=0;i<DN;i++){const h=height(-HALF+(i+.5)/DN*HALF*2,-HALF+(j+.5)/DN*HALF*2);dd[i+j*DN]=Math.max(0,Math.min(255,Math.round((-h+1.5)*28)))}
   const dt=new THREE.DataTexture(dd,DN,DN,THREE.RedFormat);dt.magFilter=dt.minFilter=THREE.LinearFilter;dt.needsUpdate=true;
   const WU={dep:{value:dt},t:{value:0},half:{value:HALF}};S.waterU=WU;
-  const wm=new THREE.MeshStandardMaterial({color:'#ffffff',roughness:.12,metalness:.1,transparent:true,opacity:.9,normalMap:nt,normalScale:new THREE.Vector2(.42,.42)});S.waterN=nt;
+  const wm=new THREE.MeshStandardMaterial({color:'#ffffff',roughness:.07,metalness:.1,transparent:true,opacity:.9,normalMap:nt,normalScale:new THREE.Vector2(.5,.5)});S.waterN=nt;
   wm.onBeforeCompile=sh=>{Object.assign(sh.uniforms,{uDep:WU.dep,uT:WU.t,uHalf:WU.half});
     sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vWp;').replace('#include <worldpos_vertex>','#include <worldpos_vertex>\nvWp=(modelMatrix*vec4(transformed,1.)).xyz;');
     sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vWp;uniform sampler2D uDep;uniform float uT,uHalf;')
-      .replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\n{vec3 n2=texture2D(normalMap,vWp.xz/23.+vec2(-uT*.011,uT*.007)).xyz*2.-1.;normal=normalize(normal+vec3(n2.x,0.,n2.y)*.18);}')
-      .replace('#include <color_fragment>','#include <color_fragment>\n{vec2 uv=(vWp.xz+uHalf)/(2.*uHalf);float d=texture2D(uDep,uv).r*255./28.-1.5;d=clamp(d,0.,30.);\n vec3 shal=vec3(.25,.62,.62),mid=vec3(.09,.36,.52),deep=vec3(.04,.17,.33);vec3 c=mix(shal,mid,smoothstep(.0,2.5,d));c=mix(c,deep,smoothstep(2.5,12.,d));\n float fo=(1.-smoothstep(.05,.7,d))*(.6+.4*sin(vWp.x*.9+vWp.z*.7+uT*2.));diffuseColor.rgb=mix(c,vec3(.95,.98,1.),fo*.75);diffuseColor.a=mix(.62,.93,smoothstep(.0,3.,d))+fo*.2;}')
+      .replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\n{vec3 n2=texture2D(normalMap,vWp.xz/23.+vec2(-uT*.011,uT*.007)).xyz*2.-1.;vec3 n3=texture2D(normalMap,vWp.xz/7.3+vec2(uT*.019,uT*.013)).xyz*2.-1.;vec3 n4=texture2D(normalMap,vWp.xz/61.+vec2(uT*.004,-uT*.006)).xyz*2.-1.;normal=normalize(normal+vec3(n2.x,0.,n2.y)*.2+vec3(n3.x,0.,n3.y)*.1+vec3(n4.x,0.,n4.y)*.22);}')
+      // colour by depth: sand-green shallows where the bed shows through, rippling light on the bed, turquoise, blue, then near-black deep water;
+      // lines of surf roll in towards every shore and break into foam at the edge
+      .replace('#include <color_fragment>','#include <color_fragment>\n{vec2 uv=(vWp.xz+uHalf)/(2.*uHalf);float d=texture2D(uDep,uv).r*255./28.-1.5;d=clamp(d,0.,30.);\n vec3 shal=vec3(.36,.70,.62),mid=vec3(.07,.42,.55),deep=vec3(.03,.18,.36),abyss=vec3(.012,.07,.17);vec3 c=mix(shal,mid,smoothstep(.0,2.2,d));c=mix(c,deep,smoothstep(2.2,9.,d));c=mix(c,abyss,smoothstep(9.,24.,d));\n vec2 q=vWp.xz*.42;float ca=1.-abs(sin(q.x+sin(q.y*1.3+uT*.9)*1.4+uT*.45)*sin(q.y*1.15+sin(q.x*1.7-uT*.7)*1.2-uT*.38));ca=pow(ca,7.);c+=vec3(.75,1.,.9)*ca*.22*(1.-smoothstep(.2,3.5,d));\n float nz=sin(vWp.x*.21+sin(vWp.z*.17)*2.)*.5+sin(vWp.z*.29-vWp.x*.07)*.5;float band=smoothstep(.82,1.,sin(d*3.4-uT*1.7+nz*1.6))*(1.-smoothstep(.25,1.8,d));\n float fo=(1.-smoothstep(.04,.42,d))*(.65+.35*sin(vWp.x*.9+vWp.z*.7+uT*2.))+band*.75;fo=clamp(fo,0.,1.);\n diffuseColor.rgb=mix(c,vec3(.95,.98,1.),fo*.8);diffuseColor.a=mix(.5,.95,smoothstep(.0,3.5,d))+fo*.3;}')
       // the sky mirrored at a glancing look across the water
-      .replace('#include <opaque_fragment>','{float fr=pow(1.-clamp(dot(normalize(vViewPosition),normal),0.,1.),3.);outgoingLight=mix(outgoingLight,vec3(.74,.84,.93),fr*.55);diffuseColor.a=max(diffuseColor.a,fr*.9);}\n#include <opaque_fragment>')};
+      .replace('#include <opaque_fragment>','{float fr=pow(1.-clamp(dot(normalize(vViewPosition),normal),0.,1.),3.);outgoingLight=mix(outgoingLight,mix(vec3(.62,.76,.9),vec3(.86,.9,.95),fr),fr*.6);diffuseColor.a=max(diffuseColor.a,fr*.9);}\n#include <opaque_fragment>')};
   const w=new THREE.Mesh(new THREE.PlaneGeometry(HALF*2+800,HALF*2+800).rotateX(-Math.PI/2),wm);w.position.y=0;w.renderOrder=1;scene.add(w);S.water=w}
 export function updateGround(px,pz){const G=S.ground,cx=Math.floor((px+HALF)/CHUNK),cz=Math.floor((pz+HALF)/CHUNK);
   if(cx!==G.cx||cz!==G.cz){G.cx=cx;G.cz=cz;const want=new Set();
@@ -154,6 +156,8 @@ export function makeNodes(){const geos=nodeGeos(),mat=swayMat(),rmat=new THREE.M
   const IM=geos.map((g,i)=>{const m=new THREE.InstancedMesh(g,i<2||i>=7?mat:rmat,Math.max(1,caps[i]));m.count=0;m.frustumCulled=false;m.castShadow=false;m.receiveShadow=i>=2&&i<6;S.scene.add(m);return m});
   for(let i=0;i<6;i++){const m=new THREE.InstancedMesh(geos[i],i<2?mat:rmat,small?180:300);m.count=0;m.frustumCulled=false;m.castShadow=true;m.receiveShadow=i>=2;S.scene.add(m);IM.push(m)}
   S.nodes={list,B,BK,BN,IM,mat,byId:new Map(list.map(n=>[n.id,n])),lx:1e9,lz:1e9,dirty:true}}
+// take trees, rocks and bushes away where they would block a way in (ruins, their openings): f(n) says which go
+export function clearNodes(f){const N=S.nodes;N.list=N.list.filter(n=>!f(n));N.list.forEach((n,i)=>n.i=i);for(let k=0;k<N.B.length;k++)N.B[k]=N.B[k].filter(n=>!f(n));N.byId=new Map(N.list.map(n=>[n.id,n]));N.dirty=true}
 export function nodesNear(x,z,r,f){const N=S.nodes,BK=N.BK,BN=N.BN,b0=Math.floor((x-r+HALF)/BK),b1=Math.floor((x+r+HALF)/BK),c0=Math.floor((z-r+HALF)/BK),c1=Math.floor((z+r+HALF)/BK);
   for(let j=Math.max(0,c0);j<=Math.min(BN-1,c1);j++)for(let i=Math.max(0,b0);i<=Math.min(BN-1,b1);i++)for(const n of N.B[i+j*BN])f(n)}
 const m4=new THREE.Matrix4(),q=new THREE.Quaternion(),vp=new THREE.Vector3(),vs=new THREE.Vector3(),UP=new THREE.Vector3(0,1,0),tc=new THREE.Color();
@@ -237,17 +241,27 @@ export function makeCastles(){const tex=brickTex(),stoneM=seeThrough(new THREE.M
     {const k1=W(-5.4,-3),k2=W(5.4,-3);segs.push([k1.x,k1.z,k2.x,k2.z,5.4])}
     {const fh=v===1?23.5:v===2?22:20.5;const pole=new THREE.CylinderGeometry(.1,.12,6,6);pole.translate(0,fh,-3);upper.push(col(pole,'#4b3624'));const flag=new THREE.BoxGeometry(.05,1.8,3);flag.translate(0,fh+2,-1.5);roof.push(col(flag,'#ffffff'))}
     // a well and a hay stack in the yard, a stable roof along the right wall for the horses
-    {const wl=tcyl(1.1,1.2,1,12,ST);wl.translate(-9,.5,-10);lower.push(wl);const hb=new THREE.CylinderGeometry(1.2,1.4,1.6,10);hb.translate(-11.5,.8,1.5);lower.push(col(hb,'#c9a84a'))}
+    {const wl=tcyl(1.1,1.2,1,12,ST);wl.translate(-9,.5,-10);lower.push(wl);const wr=new THREE.TorusGeometry(1.15,.12,6,14).rotateX(Math.PI/2);wr.translate(-9,1.02,-10);lower.push(col(wr,CAP));
+      for(const sx of[-1,1]){const po=new THREE.BoxGeometry(.18,2.2,.18);po.translate(-9+sx*1.1,1.6,-10);lower.push(col(po,'#5a3f22'))}{const bm=new THREE.BoxGeometry(2.5,.16,.16);bm.translate(-9,2.6,-10);lower.push(col(bm,'#5a3f22'));const rf2=new THREE.ConeGeometry(1.7,.9,4);rf2.rotateY(Math.PI/4);rf2.translate(-9,3.1,-10);roof.push(col(rf2,'#8a5a36'))}
+      const hb=new THREE.CylinderGeometry(1.2,1.4,1.6,10);hb.translate(-11.5,.8,1.5);lower.push(col(hb,'#c9a84a'));const ht=new THREE.ConeGeometry(1.25,.7,10);ht.translate(-11.5,1.95,1.5);lower.push(col(ht,'#d8b85a'));
+      segs.push(...[[-9,-10,1.55],[-11.5,1.5,1.7]].map(([x,z,r])=>{const w=W(x,z);return[w.x,w.z,w.x,w.z,r]}))}
     {const rf=new THREE.BoxGeometry(4,.2,16);rf.rotateZ(.25);rf.translate(L-2.6,4.2,-2);upper.push(col(rf,'#7a5634'));for(const z of[-9.5,-2,5.5]){const pst=new THREE.CylinderGeometry(.12,.12,3.6,5);pst.translate(L-4.4,1.8,z);lower.push(col(pst,'#5a3f22'))}}
-    const rub=[];let rs=C.k*31+7;const R=()=>(rs=(rs*16807)%2147483647)/2147483647;for(let k=0;k<26;k++){const a=R()*6.283,r=R()*L,g=new THREE.DodecahedronGeometry(.8+R()*1.6,0);g.translate(Math.cos(a)*r,.4+R()*.6,Math.sin(a)*r);rub.push(col(g,'#8a847a'))}
+    // when a castle falls its stones pile up along the inside of the walls (never across the gate); every heap is solid
+    const rub=[],rsegs=[];let rs=C.k*31+7;const R=()=>(rs=(rs*16807)%2147483647)/2147483647;for(let k=0;k<30;k++){const sd=k%4,u=(R()*2-1)*(L-4),dpt=L-2.2-R()*1.6;let x,z;if(sd===0){x=u;z=-dpt}else if(sd===1){x=dpt;z=u}else if(sd===2){x=-dpt;z=u}else{x=u;z=dpt;if(Math.abs(x)<6)continue}
+      const sz=.7+R()*1.2,g=new THREE.DodecahedronGeometry(sz,0);g.scale(1,.7,1);g.translate(x,sz*.35,z);rub.push(col(g,R()<.5?'#8a847a':'#9b9488'));const w=W(x,z);rsegs.push([w.x,w.z,w.x,w.z,sz*.85])}
     const mk=(arr,mat)=>{const g=merge(arr,true);const m=new THREE.Mesh(g,mat);m.position.set(C.x,C.y-.3,C.z);m.rotation.y=C.a;m.scale.y=CSY;m.castShadow=m.receiveShadow=true;S.scene.add(m);return m};
     const lo=mk(lower,stoneM),up=mk(upper,stoneM),rm=new THREE.MeshLambertMaterial({vertexColors:true,color:'#9a9a9a'}),ro=mk(roof,seeThrough(rm,'roof')),ru=mk(rub,new THREE.MeshLambertMaterial({vertexColors:true}));ru.visible=false;
-    const gate=W(0,L+5),yard=W(0,6),ch=W(-8.5,8),stable=[0,1,2,3,4].map(i=>{const w=W(L-4.2,-9+i*3.6);return{x:w.x,z:w.z,a:C.a-Math.PI/2}});
+    // the treasure chest stands against the left wall, facing into the yard; ten places for horses: five under the stable roof, five more in front
+    const gate=W(0,L+5),yard=W(0,6),ch=W(-L+2.1,9),stable=[0,1,2,3,4,5,6,7,8,9].map(i=>{const w=W(i<5?L-4.2:L-7.4,-9+(i%5)*3.6);return{x:w.x,z:w.z,a:C.a-Math.PI/2}});segs.push([ch.x,ch.z,ch.x,ch.z,1])
     up.userData.m0=stoneM;lo.userData.m0=stoneM;
-    list.push({...C,lo,up,ro,ru,rm,segs,gate,yard,W,v,tops:tops.map(t=>{const w=W(t.x,t.z);return{x:w.x,y:C.y-.3+t.y*CSY,z:w.z}}),chest:{x:ch.x,z:ch.z,a:C.a},stable})}
+    list.push({...C,lo,up,ro,ru,rm,segs,gate,yard,W,v,tops:tops.map(t=>{const w=W(t.x,t.z);return{x:w.x,y:C.y-.3+t.y*CSY,z:w.z}}),chest:{x:ch.x,z:ch.z,a:C.a+Math.PI/2},stable,rsegs})}
   // the treasure chests, one in each castle yard, and the gold heaped in them
-  const body=merge([col(new THREE.BoxGeometry(1.3,.75,.85).translate(0,.375,0),'#7a4f2a'),col(new THREE.BoxGeometry(1.36,.1,.9).translate(0,.2,0),'#c9a640'),col(new THREE.BoxGeometry(1.36,.1,.9).translate(0,.6,0),'#c9a640')]);
-  const lid=merge([col(new THREE.CylinderGeometry(.43,.43,1.3,8,1,false,0,Math.PI).rotateZ(Math.PI/2).rotateX(Math.PI/2),'#86592f'),col(new THREE.BoxGeometry(.14,.2,.2).translate(0,.1,.42),'#d9b24a')]);
+  // a strongbox: oak planks bound in dark iron, gilt corners, a lock plate and a ring handle on each side
+  const IRON='#34343a',GILT='#d9b24a',BX=(w,h,d,x,y,z,c)=>col(new THREE.BoxGeometry(w,h,d).translate(x,y,z),c);
+  const body=merge([BX(1.3,.75,.85,0,.375,0,'#7a4f2a'),...[.19,.39,.58].map(y=>BX(1.31,.025,.86,0,y,0,'#4e3119')),...[-.45,.45].map(x=>BX(.1,.77,.89,x,.385,0,IRON)),BX(1.34,.08,.89,0,.04,0,IRON),
+    ...[[-1,-1],[1,-1],[-1,1],[1,1]].map(([sx,sz])=>BX(.14,.2,.14,sx*.6,.1,sz*.38,GILT)),BX(.3,.3,.04,0,.52,.44,GILT),BX(.08,.12,.05,0,.47,.47,'#1a1a1a'),
+    ...[-1,1].map(sx=>col(new THREE.TorusGeometry(.11,.025,5,10).rotateY(Math.PI/2).translate(sx*.68,.45,0),IRON))]);
+  const lid=merge([col(new THREE.CylinderGeometry(.43,.43,1.3,8,1,false,0,Math.PI).rotateZ(Math.PI/2).rotateX(Math.PI/2),'#86592f'),...[-.45,.45].map(x=>col(new THREE.CylinderGeometry(.455,.455,.1,8,1,false,0,Math.PI).rotateZ(Math.PI/2).rotateX(Math.PI/2).translate(x,0,0),IRON)),col(new THREE.BoxGeometry(.14,.2,.2).translate(0,.1,.42),GILT)]);
   const gold=merge([...[0,1,2,3,4,5,6].map(k=>col(new THREE.CylinderGeometry(.14,.14,.05,10).translate(Math.cos(k*2.4)*.3,.78+(k%3)*.05,Math.sin(k*2.4)*.18),'#f2c33a')),col(new THREE.SphereGeometry(.45,10,6,0,6.283,0,1.2).scale(1.2,.45,.75).translate(0,.72,0),'#e6b42e')]);
   const cm=new THREE.MeshLambertMaterial({vertexColors:true}),gm=new THREE.MeshStandardMaterial({vertexColors:true,metalness:.6,roughness:.3,emissive:'#5a3a00',emissiveIntensity:.35});
   const CB=new THREE.InstancedMesh(body,cm,list.length),CL=new THREE.InstancedMesh(lid,cm,list.length),CG=new THREE.InstancedMesh(gold,gm,list.length);for(const m of[CB,CL,CG]){m.castShadow=true;m.frustumCulled=false;S.scene.add(m)}
@@ -260,14 +274,17 @@ export function castleFade(k,f){return;const c=S.castles[k];if(!c.upT){c.upT=c.u
   const see=f<.97;c.up.material=see?c.upT:c.up.userData.m0;c.ro.material=see?c.roT:c.rm;c.upT.opacity=f;c.roT.opacity=f;c.roT.color.copy(c.rm.color);c.up.castShadow=true}
 export function castleLook(k,colr,ruined){const c=S.castles[k];c.rm.color.copy(colr);c.up.visible=!ruined;c.ro.visible=!ruined;c.ru.visible=!!ruined;c.lo.scale.y=(ruined?.55:1)*CSY}
 
-// ---------- the closing ring: four tall shimmering walls that close in from the edges of the map ----------
-export function makeZone(){const g=new THREE.PlaneGeometry(1,1);g.translate(0,.5,0);
-  const m=new THREE.ShaderMaterial({transparent:true,depthWrite:false,side:THREE.DoubleSide,fog:false,uniforms:{t:{value:0}},
-    vertexShader:'varying vec2 vU;void main(){vU=uv;vec4 w=modelMatrix*vec4(position,1.);vU.x=(w.x+w.z)*.05;gl_Position=projectionMatrix*viewMatrix*w;}',
+// ---------- the closing ring: a tall shimmering wall, a square with rounded corners, that closes in on a different place every match ----------
+// one strip of points round the four corner arcs; the shader puts each point where the square of this moment has it
+export function makeZone(){const P=[],A=[],I=[],N=12;let k=0;
+  for(const[sx,sz,a0]of[[1,1,0],[-1,1,Math.PI/2],[-1,-1,Math.PI],[1,-1,Math.PI*1.5]])for(let i=0;i<=N;i++){const a=a0+i/N*Math.PI/2;for(const y of[0,1]){P.push(0,y,0);A.push(sx,sz,a)}k++}
+  for(let i=0;i<k;i++){const a=i*2,b=((i+1)%k)*2;I.push(a,b,a+1,b,b+1,a+1)}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('aC',new THREE.Float32BufferAttribute(A,3));g.setIndex(I);
+  const m=new THREE.ShaderMaterial({transparent:true,depthWrite:false,side:THREE.DoubleSide,fog:false,uniforms:{t:{value:0},uZ:{value:new THREE.Vector4(0,0,1000,60)}},
+    vertexShader:'attribute vec3 aC;uniform vec4 uZ;varying vec2 vU;void main(){float r=uZ.w,h=uZ.z;vec2 p=uZ.xy+vec2(aC.x,aC.y)*(h-r)+r*vec2(cos(aC.z),sin(aC.z));vec4 w=vec4(p.x,-30.+position.y*170.,p.y,1.);vU=vec2((p.x+p.y)*.05,position.y);gl_Position=projectionMatrix*viewMatrix*w;}',
     fragmentShader:'uniform float t;varying vec2 vU;void main(){float s=.5+.5*sin(vU.x*3.+t*1.6+vU.y*14.);float a=(.2+.14*s)*(1.-smoothstep(.5,1.,vU.y))+.25*smoothstep(.05,0.,vU.y);gl_FragColor=vec4(.62,.22,.78,a);}'});
-  const ws=[0,1,2,3].map(()=>{const w=new THREE.Mesh(g,m);w.renderOrder=5;w.frustumCulled=false;S.scene.add(w);return w});S.zone={ws,m}}
-export function drawZone(h,t){const {ws,m}=S.zone;m.uniforms.t.value=t;const H=160;
-  ws.forEach((w,i)=>{w.visible=h<HALF-20;const a=i*Math.PI/2;w.rotation.y=a;w.position.set(Math.sin(a)*h,-30,Math.cos(a)*h);w.scale.set(h*2,H,1)})}
+  const w=new THREE.Mesh(g,m);w.renderOrder=5;w.frustumCulled=false;S.scene.add(w);S.zone={w,m}}
+export function drawZone(z,t){const {w,m}=S.zone;m.uniforms.t.value=t;w.visible=z.h<HALF-20;m.uniforms.uZ.value.set(z.cx,z.cz,Math.max(z.h,.5),z.r)}
 
 // ---------- bolts, chips, a ring under the target ----------
 export function makeFx(){

@@ -55,12 +55,13 @@ export async function loadChr(scene,key,V){
   for(const k of h.order){const c=h.clips[k],ms=[];for(let f=0;f<c.n;f++){const a=new Int16Array(buf,o,nv*3);o+=pad(nv*6);const P3=new Float32Array(nv*3);for(let i=0;i<P3.length;i++)P3[i]=a[i]*h.q;
       const g=new THREE.BufferGeometry();g.setIndex(iA);g.setAttribute('position',new THREE.BufferAttribute(P3,3));g.setAttribute('uv',uvA);g.setAttribute('aTeam',tA);g.computeVertexNormals();g.computeBoundingSphere();
       g.setAttribute('aBl',new THREE.InstancedBufferAttribute(new Float32Array(CAP),1));g.setAttribute('aLv',new THREE.InstancedBufferAttribute(new Float32Array(CAP*2),2));
-      const m=new THREE.InstancedMesh(g,mat,CAP);m.customDepthMaterial=DEPTH;m.castShadow=true;m.frustumCulled=false;m.count=0;m.visible=false;m.setColorAt(0,new THREE.Color('#fff'));m.userData.n=0;scene.add(m);ms.push(m)}
+      const m=new THREE.InstancedMesh(g,mat,CAP);{let mn=1e9;for(let i=0;i<nv;i++)if(TMw[i]<1.5&&P3[i*3+1]<mn)mn=P3[i*3+1];m.userData.foot=mn}m.customDepthMaterial=DEPTH;m.castShadow=true;m.frustumCulled=false;m.count=0;m.visible=false;m.setColorAt(0,new THREE.Color('#fff'));m.userData.n=0;scene.add(m);ms.push(m)}
     // each frame knows the next one, to blend into it (a one-shot clip holds its last pose)
     ms.forEach((m,i)=>{const nx=ms[LOOP[k]?(i+1)%ms.length:Math.min(ms.length-1,i+1)].geometry;m.geometry.setAttribute('p2',nx.attributes.position);m.geometry.setAttribute('n2',nx.attributes.normal)});
     clips[k]=ms}
-  CHR[key]={clips}}
+  // the archer model stands a hand above its own origin (and higher still in its run): note where the feet really are in each clip
+  const foot={};if(key==='okcu')for(const k in clips)foot[k]=Math.min(...clips[k].map(m=>m.userData.foot));CHR[key]={clips,foot}}
 // ph: 0..1 through the clip; lw: weapon level (1..10), la: armour level (0..3)
 export function chrPush(key,clip,ph,m4,col,lw=1,la=0){const C=CHR[key];if(!C)return false;const cl=C.clips[clip]||C.clips.idle;const n=cl.length,x=(LOOP[clip]?((ph%1)+1)%1:Math.min(.999,Math.max(0,ph)))*n,f=Math.min(n-1,Math.floor(x)),m=cl[f];const i=m.userData.n;if(i>=CAP)return true;m.userData.n++;
-  m.setMatrixAt(i,m4);m.setColorAt(i,col);const g=m.geometry;g.attributes.aBl.array[i]=x-f;g.attributes.aLv.array[i*2]=lw;g.attributes.aLv.array[i*2+1]=la;return true}
+  const fo=C.foot[clip];if(fo){const e=m4.elements;e[13]-=fo*Math.hypot(e[4],e[5],e[6])}m.setMatrixAt(i,m4);m.setColorAt(i,col);const g=m.geometry;g.attributes.aBl.array[i]=x-f;g.attributes.aLv.array[i*2]=lw;g.attributes.aLv.array[i*2+1]=la;return true}
 export function chrFlush(){for(const k in CHR)for(const cl of Object.values(CHR[k].clips))for(const m of cl){const n=m.userData.n,was=m.count;m.count=n;m.visible=n>0;if(n||was){m.instanceMatrix.needsUpdate=true;if(m.instanceColor)m.instanceColor.needsUpdate=true;m.geometry.attributes.aBl.needsUpdate=true;m.geometry.attributes.aLv.needsUpdate=true}m.userData.n=0}}

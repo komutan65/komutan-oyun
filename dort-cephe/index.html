@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Dört Cephe</title>
 <script type="importmap">{"imports":{"three":"../three.min.js"}}</script>
-<link rel="stylesheet" href="lobby.css?v=20261123i">
+<link rel="stylesheet" href="lobby.css?v=20261124a">
 <style>
 /* Georgia draws numbers at uneven heights (old-style figures): every digit in the game comes from an even, upright font instead */
 @font-face{font-family:'Rakam';src:local('Helvetica Neue'),local('HelveticaNeue'),local('Arial'),local('Roboto'),local('Segoe UI');unicode-range:U+0030-0039,U+002E,U+002C,U+002B,U+002F,U+0025}
@@ -159,12 +159,16 @@ body.tut #rivals,body.tut #chatB,body.tut #bSes,body.tut #bHome,body.tut #bAll,b
 <button id="eye" title="Ekranı gizle" aria-label="Ekranı gizle" hidden>👁</button>
 <div id="rot"><div id="rotRow"><button id="rotL" title="Haritayı sola döndür" aria-label="Haritayı sola döndür">⟲</button><button id="rotR" title="Haritayı sağa döndür" aria-label="Haritayı sağa döndür">⟳</button></div></div>
 
-<div id="ver" data-en="Version 52">Sürüm 52</div>
+<div id="ver" data-en="Version 53">Sürüm 53</div>
 <div id="lobby"><div class="lbox">
   <h1 data-en="FOUR FRONTS">DÖRT CEPHE</h1>
   <p id="lOnline" hidden></p>
   <div id="lLang"><button data-l="tr">Türkçe</button><button data-l="en">English</button></div>
-  <div id="lMode"><button id="m4" class="on" data-en="4 players">4 kişilik</button><button id="m2">1v1</button><button id="m20" data-en="Big map">Büyük harita</button></div>
+  <div id="lMode">
+    <div class="mcard on" id="mcK" role="button" tabindex="0"><b>🏰 <span data-en="Castle War">Kale Savaşı</span></b><small data-en="Guard your castle and send armies down the roads. Play 4-player or one against one.">Kaleni koru, yollardan ordu gönder. 4 kişilik ya da bire bir oyna.</small>
+      <div class="seg"><button id="m4" class="on" data-en="4 players">4 kişilik</button><button id="m2">1v1</button></div></div>
+    <button class="mcard" id="m20"><b>🗺️ <span data-en="Big Map">Büyük Harita</span></b><small data-en="20 commanders in an open world: find weapons, ride horses, take castles. The last one standing wins.">20 komutan, açık dünya: silah bul, ata bin, kale al. Son kalan kazanır.</small></button>
+  </div>
   <div id="lHome">
     <label for="lName" data-en="Your name">Adın</label>
     <input id="lName" maxlength="12" autocomplete="off">
@@ -191,6 +195,6 @@ body.tut #rivals,body.tut #chatB,body.tut #bSes,body.tut #bHome,body.tut #bAll,b
 </div></div>
 <div id="arenaEnd" hidden><div class="lbox"><h1 id="aeTitle"></h1><p class="sub" id="aeText"></p><button id="aeAgain" class="go" data-en="New match">Yeni maç</button><button id="aeWatch" data-en="Watch the match">Maçı izle</button></div></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-<script src="lobby.js?v=20261123i"></script>
+<script src="lobby.js?v=20261124a"></script>
 </body>
 </html>

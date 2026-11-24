@@ -4,8 +4,8 @@
    (the ring closes there) and in hidden places. Where they stand and what they hold comes from the match seed,
    so it changes every match and nobody can learn a route by heart. */
 import * as THREE from 'three';
-import {HALF,height,slope,lakeK,edgeK,wetK,rng,CASTLES} from './dunya.js';
-import {S,groundAt,merge,col,tbox,tcyl,brickTex} from './sahne.js';
+import {HALF,height,slope,lakeK,edgeK,wetK,rng,CASTLES} from './dunya.js?v=20261124a';
+import {S,groundAt,merge,col,tbox,tcyl,brickTex} from './sahne.js?v=20261124a';
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 export const CENTER_R=360;          // castles this near the middle can't be chosen at the start
 export const LVC=['#a7a7a7','#c4ccd6','#e8eef6','#8fb4ff','#5d8dff','#ffe08a','#ffc23a','#ffa81e','#ff4a3a','#c38cff'];   // level colours 1..10
@@ -73,7 +73,11 @@ function fortGeo(br,R){const L=[],W=8;
   ruinWall(L,-W,-W,W,-W,2.2,4.4,R);ruinWall(L,-W,W,-4.2,W,1.8,3.8,R);ruinWall(L,4.2,W,W,W,1.8,3.8,R);ruinWall(L,br*W,-W,br*W,-2.2,2,4,R);ruinWall(L,br*W,3.8,br*W,W,1.4,3.4,R);ruinWall(L,-br*W,-W,-br*W,W,2.4,4.6,R);
   for(const[x,z]of[[-W,-W],[W,-W],[-W,W],[W,W]]){const h=3.5+R()*2.6;const t=tcyl(2,2.3,h,10,'#f0ece4');t.translate(x,h/2,z);L.push(t)}
   for(const sd of[-1,1]){const p=tbox(1.3,4.4,1.3,'#ffffff');p.translate(sd*4.85,2.2,W);L.push(p)}
-  for(let k=0;k<12;k++){const g=new THREE.DodecahedronGeometry(.35+R()*.6,0);const sd=k%4,u=(R()-.5)*12;g.translate(sd===0?-W+1:sd===1?W-1:u,.2,sd===2?-W+1:sd===3?(u<0?-W+1:-W+1):u);L.push(col(g,'#9a948a'))}
+  // fallen stones lie against the walls, inside and out, but never in the gate or the breach; moss on the broken tops; a cracked lintel over the gate
+  const free=(x,z)=>!(Math.abs(x)<5.4&&z>W-3)&&!(Math.sign(x)===br&&Math.abs(x)>W-3&&z>-3.2&&z<4.8);
+  for(let k=0;k<26;k++){const sd=k%4,u=(R()-.5)*13,io=k%8<4?1:-1,dd=W-(io>0?1:-1)*(1.1+R()*.5);const x=sd===0?-dd:sd===1?dd:u,z=sd===2?-dd:sd===3?dd:u;if(!free(x,z))continue;const r=.3+R()*.55,g=new THREE.DodecahedronGeometry(r,0);g.scale(1,.6,1);g.translate(x,r*.3,z);L.push(col(g,R()<.5?'#9a948a':'#857f75'))}
+  for(let k=0;k<14;k++){const sd=k%4,u=(R()-.5)*14,x=sd===0?-W:sd===1?W:u,z=sd===2?-W:sd===3?W:u;if(!free(x,z))continue;const m=new THREE.BoxGeometry(1.1+R()*1.4,.16,1.15);m.rotateY(sd<2?0:Math.PI/2);m.translate(x,1.7+R()*1.3,z);L.push(col(m,'#5f7a3c'))}
+  {const a=tbox(4.2,.8,1.1,'#e4ddcf');a.rotateZ(-.08);a.translate(-2.6,4.75,W);L.push(a);const b=tbox(1.6,.7,1,'#d8d0c0');b.rotateZ(-.4);b.translate(6.4,.45,W+1.7);L.push(b)}
   return merge(L,true)}
 function houseGeo(R){const L=[],hw=4.6,hd=3.6;
   ruinWall(L,-hw,-hd,hw,-hd,1.6,3.2,R,.45);ruinWall(L,-hw,-hd,-hw,hd,1.2,3,R,.45);ruinWall(L,hw,-hd,hw,-.6,1.2,2.6,R,.45);ruinWall(L,-hw,hd,-2,hd,.8,2.4,R,.45);ruinWall(L,2,hd,hw,hd,.8,2.2,R,.45);

@@ -3,12 +3,13 @@
    The empty castles can be taken. The ring closes in from all four edges of the map until one commander is left.
    Each screen runs its own army; the first player also runs the computer armies and the empty castles. */
 import * as THREE from 'three';
-import {HALF,smooth,rng,CASTLES} from './dunya.js';
-import {FOC,castleFade,S,makeScene,makeGround,updateGround,makeNodes,updateNodes,nodesNear,makeClutter,updateClutter,makeCastles,castleLook,drawChests,makeZone,drawZone,makeFx,chips,drawChips,mapImage,groundAt,placeSun,CW} from './sahne.js';
-import {CHR,loadChr,chrPush,chrFlush,chrTime} from './karakter.js';
-import {loadHorses} from './at.js';
-import {_T,makeCannons,shellAdd,craterAdd,fireAdd,fires,cannonsTick,cannonsDraw,explodeFx,smokeAt,sparks} from './top.js';
-import {makeSites,makeSiteMeshes,drawSites,siteVia as viaSite,siteAt as siteAtP,CENTER_R,LVC} from './hazine.js';
+import {HALF,smooth,rng,CASTLES} from './dunya.js?v=20261124a';
+import {FOC,castleFade,S,makeScene,makeGround,updateGround,makeNodes,updateNodes,nodesNear,clearNodes,makeClutter,updateClutter,makeCastles,castleLook,drawChests,makeZone,drawZone,makeFx,chips,drawChips,mapImage,groundAt,placeSun,CW} from './sahne.js?v=20261124a';
+import {CHR,loadChr,chrPush,chrFlush,chrTime} from './karakter.js?v=20261124a';
+import {loadHorses} from './at.js?v=20261124a';
+import {_T,makeCannons,shellAdd,craterAdd,fireAdd,fires,cannonsTick,cannonsDraw,explodeFx,smokeAt,sparks} from './top.js?v=20261124a';
+import {makeLandmarks} from './yapi.js?v=20261124a';
+import {makeSites,makeSiteMeshes,drawSites,siteVia as viaSite,siteAt as siteAtP,CENTER_R,LVC} from './hazine.js?v=20261124a';
 const V=new URL(import.meta.url).searchParams.get('v')||'1';
 const {SES}=await import('../ses.js?v='+V);
 // no music on the big map: only the sounds of the field, louder the nearer they are
@@ -25,7 +26,7 @@ const UNIT={
   okcu:{ad:TL('Okçu','Archer'),hp:180,zr:.15,sp:6.2,dmg:9,cd:1,rng:2.2,ok:22,okR:36},
   kilic:{ad:TL('Kılıçlı','Swordsman'),hp:110,zr:.2,sp:5.2,dmg:14,cd:.9,rng:2.4},
   arbalet:{ad:TL('Arbaletçi','Crossbowman'),hp:80,zr:.08,sp:5.4,dmg:5,cd:1.4,rng:2.2,ok:13,okR:32}};
-const START_MEN=3,START_HORSES=2;
+const START_MEN=3,START_HORSES=2,MAXH=10;
 const MAXMEN=p=>p.bot?12:30;   // hire as many as your gold allows (up to 30; the computer keeps to 12)
 const HORSE_SP=1.35,HORSE_HP=40,START_GOLD=160,CASTLE_HP=2000,NEUTRAL_HP=2000,CAP_T=10,KILL_G=15,CMD_G=60;
 const COST={silah:[150,300,500],zirh:[150,300,500],kule:[200,350,500],asker:50,at:80,onar:100,iyiles:40,top:320};
@@ -35,11 +36,17 @@ const COATS=['#7a4524','#5a3018','#8f5a2e','#2b2420','#b9a48a','#6b4a33','#a06a3
 const NAMES=['Ayaz','Bora','Kaan','Selim','Oğuz','Doruk','Arda','Deniz','Yiğit','Batu','Efe','Mert','Eren','Kerem','Toprak','Çınar','Atlas','Tuna','Alp','Tarık','Poyraz','Sarp','Umut','Rüzgar'];
 // the ring: it stands still for four minutes, then closes in from all four edges, step by step, the same for everyone
 const ZS=[[240,60,760,2],[70,50,520,3],[60,45,330,5],[50,40,180,8],[40,35,80,12],[40,40,0,16]];
-function zoneAt(t){let h=HALF-30,tt=t-SETUP_T,d=0;for(const[w,s,r,dmg]of ZS){if(tt<w)return{h,d,wait:w-tt,shr:false,next:r};tt-=w;if(tt<s)return{h:lerp(h,r,smooth(0,1,tt/s)),d:dmg,wait:s-tt,shr:true,next:r};tt-=s;h=r;d=dmg}return{h:0,d:16,wait:0,shr:false,next:0}}
-const outside=(x,z,h)=>Math.max(Math.abs(x),Math.abs(z))>h;
+// where the ring ends is drawn from the match seed: somewhere on dry land within 520 m of the middle, never the same twice.
+// Each smaller square stays inside the last one, its middle sliding from the centre of the map towards that spot
+const Z0=HALF-30;
+function zoneMk(h,d,wait,shr,next){const k=1-h/Z0,nk=1-next/Z0;return{h,d,wait,shr,next,cx:ZEND.x*k,cz:ZEND.z*k,ncx:ZEND.x*nk,ncz:ZEND.z*nk,r:Math.min(h*.3,70)}}
+function zoneAt(t){let h=Z0,tt=t-SETUP_T,d=0;for(const[w,s,r,dmg]of ZS){if(tt<w)return zoneMk(h,d,w-tt,false,r);tt-=w;if(tt<s)return zoneMk(lerp(h,r,smooth(0,1,tt/s)),dmg,s-tt,true,r);tt-=s;h=r;d=dmg}return zoneMk(0,16,0,false,0)}
+// outside the ring (a rounded square), or within m metres of its edge
+function outside(x,z,Z,m=0){const h=Z.h-m;if(h<=0)return true;const dx=Math.abs(x-Z.cx),dz=Math.abs(z-Z.cz);if(dx>h||dz>h)return true;const r=Math.min(Z.r,h),qx=dx-(h-r),qz=dz-(h-r);return qx>0&&qz>0&&qx*qx+qz*qz>r*r}
 
 // ---------- match setup ----------
 const seed=(A.seed>>>0)||((Math.random()*4294967295)>>>0),R=rng(seed);let T0=A.t0||Date.now()+1500;
+const ZEND=(()=>{const r=rng((seed^0x2077)>>>0);for(let i=0;i<400;i++){const a=r()*6.283,d=Math.sqrt(r())*520,x=Math.cos(a)*d,z=Math.sin(a)*d;if(groundAt(x,z)>2.5)return{x,z}}return{x:0,z:0}})();
 const gtime=()=>(Date.now()-T0)/1000;
 const humans=(A.players||[{id:'ben',name:TL('Sen','You')}]).filter(p=>p&&!p.bot).slice(0,20);
 const PL=[];
@@ -95,8 +102,11 @@ html,body,canvas{-webkit-user-select:none;user-select:none;-webkit-touch-callout
 #mSetup{position:absolute;inset:0;background:rgba(6,10,14,.9);pointer-events:auto;display:flex;flex-direction:column;align-items:center;overflow:auto;padding:8px 8px calc(10px + env(safe-area-inset-bottom,0px))}
 #mSetup h2{margin:6px 0 2px;color:#ffd98a;font-size:19px}#mSetup p{margin:3px 0;font-size:13px;text-align:center}#mSetup canvas{width:min(94vw,56vh);height:min(94vw,56vh);border-radius:12px;border:2px solid #c9b07a;touch-action:none;flex:none}
 #mSetup .cls{display:flex;gap:8px;margin:6px 0;justify-content:center}#mSetup .cls button{padding:8px 14px}#mSetup .box{width:min(94vw,560px)}
-#mMap{position:absolute;inset:0;background:rgba(6,10,14,.82);pointer-events:auto;display:flex;align-items:center;justify-content:center;flex-direction:column}
-#mMap canvas{width:min(94vw,82vh);height:min(94vw,82vh);border-radius:12px;border:2px solid #c9b07a}#mMap p{margin:8px;font-size:13px;text-align:center}
+#mMap{position:absolute;inset:0;background:#0d1a26;pointer-events:auto;z-index:5}#mMap canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+#mMap .mmT{position:absolute;left:50%;transform:translateX(-50%);top:calc(10px + env(safe-area-inset-top,0px));background:rgba(12,16,22,.8);border:1px solid #c9b07a;border-radius:10px;padding:6px 12px;font-size:13px;white-space:nowrap;pointer-events:none}
+#mMap .mmB{position:absolute;right:12px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:8px}#mMap .mmB button{width:48px;height:48px;font-size:22px!important;border-radius:12px}
+#mMap .mmL{position:absolute;left:10px;top:calc(10px + env(safe-area-inset-top,0px));background:rgba(12,16,22,.78);border-radius:10px;padding:6px 9px;font-size:11.5px;display:flex;flex-direction:column;gap:3px;pointer-events:none}#mMap .mmL i{display:inline-block;width:10px;height:10px;margin-right:5px;vertical-align:-1px}#mMap .mmL b{margin-right:5px}
+@media (orientation:portrait){#mMap .mmT{left:auto;right:10px;transform:none;max-width:48vw;white-space:normal;text-align:center}}
 #mMenu{position:absolute;left:${SMALL?96:10}px;top:calc(${SMALL?112:118}px + env(safe-area-inset-top,0px));padding:5px 10px;font-size:13px!important}
 .mLab{position:absolute;transform:translate(-50%,-100%);font-size:12px;white-space:nowrap;text-shadow:0 1px 2px #000,0 0 3px #000;text-align:center;line-height:1.15}
 .mLab i{display:block;margin:2px auto 0;width:46px;height:4px;background:#3a1d1d;border-radius:2px;overflow:hidden}.mLab i b{display:block;height:100%;background:#e05a3a}
@@ -105,6 +115,9 @@ html,body,canvas{-webkit-user-select:none;user-select:none;-webkit-touch-callout
 #mGuide{position:absolute;left:10px;top:calc(${SMALL?150:156}px + env(safe-area-inset-top,0px));width:min(46vw,215px);background:rgba(12,16,22,.78);border:1px solid #c9b07a;border-radius:10px;padding:6px 26px 6px 9px;font-size:${SMALL?12:13}px;line-height:1.3;display:none;pointer-events:auto}
 #mGuide b{display:block;color:#ffd98a;font-size:${SMALL?11:12}px;margin-bottom:2px}#mGuide em{font-style:normal;color:#9fe08a}#mGuide button{position:absolute;right:3px;top:3px;padding:0 6px!important;font-size:12px!important;background:none!important;border:0!important;box-shadow:none!important;color:#ccc}
 #mGArr{position:absolute;width:44px;height:44px;margin:-22px 0 0 -22px;display:none;pointer-events:none;filter:drop-shadow(0 2px 3px #000)}#mGArr svg{width:100%;height:100%}#mGArr span{position:absolute;top:44px;left:50%;transform:translateX(-50%);font:700 12px sans-serif;color:#ffe08a;text-shadow:0 1px 2px #000;white-space:nowrap}
+@media (orientation:portrait){#mHp{width:min(56vw,230px)!important}#mTop{top:calc(78px + env(safe-area-inset-top,0px))!important}#mGold,#mMenu{top:calc(128px + env(safe-area-inset-top,0px))!important}
+#mTip{top:calc(170px + env(safe-area-inset-top,0px))!important;left:10px!important;right:10px;transform:none!important;max-width:none!important}#mFeed{top:auto!important;bottom:calc(300px + env(safe-area-inset-bottom,0px))}
+#mGuide{top:auto!important;bottom:calc(250px + env(safe-area-inset-bottom,0px));width:min(52vw,230px)!important}}
 #mHurt{position:absolute;inset:0;box-shadow:inset 0 0 90px rgba(200,20,20,0);transition:box-shadow .25s}
 #mOut{position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(120,40,160,0) 40%,rgba(120,40,160,.35));display:none}`;
 document.head.append(css);
@@ -125,9 +138,17 @@ makeScene(cv,SMALL);const {renderer,scene,camera,sun}=S;
 makeGround();makeNodes();makeCastles();makeZone();makeFx();makeClutter();makeCannons();
 // the weapon caches: where they stand and what they hold comes from this match's seed, so it changes every match
 const SITES=makeSites(seed),CHESTS=SITES.flatMap(o=>o.chests),WR=rng((seed^0x77aa)>>>0);makeSiteMeshes(SITES,V);
+const LMK=makeLandmarks(seed,SITES);for(const f of LMK.fires)fireAdd(f.x,f.z,1e7,.7);
+// nothing grows inside a ruin or in front of its openings: every way in stays open
+clearNodes(n=>{if(n.t===5)return false;for(const o of LMK.list)if(Math.hypot(n.x-o.x,n.z-o.z)<o.r+(n.t<2?1:2)*n.s+1)return true;for(const o of SITES){const d=Math.hypot(n.x-o.x,n.z-o.z);if(d>22)continue;const l=o.L(n.x,n.z),m=(n.t<2?.6:1.5)*n.s+1.5;
+  if(o.kind==='kale'&&Math.abs(l.x)<8+m&&Math.abs(l.z)<8+m)return true;if(o.kind==='ev'&&Math.abs(l.x)<4.6+m&&Math.abs(l.z)<3.6+m)return true;if(o.kind==='harabe'&&d<7+m)return true;if(o.kind==='gizli'&&d<1.2+m)return true;
+  for(const G of o.gates){const ax=G.out[0],az=G.out[1],bx=G.in[0],bz=G.in[1],dx=bx-ax,dz=bz-az,L2=dx*dx+dz*dz,t=clamp(((l.x-ax)*dx+(l.z-az)*dz)/L2,-1.2,1),px=ax+dx*t,pz=az+dz*t;if(Math.hypot(l.x-px,l.z-pz)<m+2.4)return true}}
+  for(const C of S.castles){if(Math.abs(n.x-C.x)>CW+14||Math.abs(n.z-C.z)>CW+14)continue;const l=localIn(C,n.x,n.z);if(Math.abs(l.x)<5+n.s*1.4&&l.z>CW-2&&l.z<CW+11)return true}return false});
 let HORSE=null;
 const MAPN=SMALL?256:384,MAPI=mapImage(MAPN);
-addEventListener('resize',()=>{renderer.setSize(innerWidth,innerHeight,false);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix()});
+// a phone held upright sees a narrow strip: widen the view so the field around the commander still shows
+const fitCam=()=>{camera.aspect=innerWidth/innerHeight;camera.fov=camera.aspect<1?Math.min(78,55/Math.pow(camera.aspect,.55)):55;camera.updateProjectionMatrix()};fitCam();
+addEventListener('resize',()=>{renderer.setSize(innerWidth,innerHeight,false);fitCam()});
 const loading=document.createElement('div');loading.style.cssText='position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#0d1a26;font:700 18px Georgia,serif;color:#ffd98a;z-index:9';loading.textContent=TL('Kaleler hazırlanıyor…','Getting the castles ready…');document.body.append(loading);
 try{await Promise.all(['sovalye','okcu','binici','atliokcu'].map(k=>loadChr(scene,k,V)))}catch(e){console.warn(e)}
 try{HORSE=await loadHorses(scene,110,V)}catch(e){console.warn(e)}
@@ -148,7 +169,7 @@ function spawnArmy(p){const Cc=S.castles[p.home];if(!Cc)return;p.units=[];const 
   p.hs=Cc.stable.slice(0,START_HORSES).map((sl,i)=>mkHorse(p,i,sl.x,sl.z,sl.a))}
 // ---------- horses: they live in the castle stable; a soldier walks to one to mount, and a horse left behind walks home ----------
 function mkHorse(p,i,x,z,a){return{i,x,z,a,y:groundAt(x,z),rider:null,want:null,mv:0,ph:Math.random(),coat:COATS[(p.ix*7+i)%COATS.length]}}
-function mount(p,u,h){if(!u||!h)return;h.rider=u.k;h.want=null;u.horse=true;u.hi=h.i;u.wantH=null;u.mhp+=HORSE_HP;u.hp+=HORSE_HP;u.coat=h.coat;if(started)snd('kisne',u.x,u.z,40,.7)}
+function mount(p,u,h){if(!u||!h)return;h.rider=u.k;h.want=null;u.horse=true;u.hi=h.i;u.wantH=null;u.mhp+=HORSE_HP;u.hp+=HORSE_HP;u.coat=h.coat;if(started)snd('kisne2',u.x,u.z,40,.7)}
 function dismount(p,u){const h=p.hs.find(o=>o.rider===u.k);u.horse=false;u.hi=null;u.mhp-=HORSE_HP;u.hp=Math.max(1,Math.min(u.hp,u.mhp));if(h){h.rider=null;h.x=u.x+Math.cos(u.a)*1.7;h.z=u.z-Math.sin(u.a)*1.7;h.a=u.a;h.rest=gtime()+3}}
 function foeHorse(p,x,z,r){let best=null,bd=r;for(const q of PL){if(q===p)continue;for(const h of q.hs){if(h.rider!=null||h.want!=null||h.call!=null)continue;const d=Math.hypot(h.x-x,h.z-z);if(d<bd){bd=d;best={h,q}}}}return best}
 function stealHorse(p,q,h){const k=q.hs.indexOf(h);if(k>=0)q.hs.splice(k,1);const old=h.i;let i=0;while(p.hs.some(o=>o.i===i))i++;h.i=i;h.tx=h.tz=null;p.hs.push(h);send('steal',{p:q.ix,i:old,by:p.ix})}
@@ -160,15 +181,16 @@ function horseTick(p,dt){const C=p.home!=null&&!CS[p.home].ruined?S.castles[p.ho
     if(h.call!=null){const w=p.units.find(o=>o.k===h.call);if(!w||w.dead||w.horse){h.call=null}else{const g=siteVia(h,viaGate(h,{x:w.x,z:w.z})),dx=g.x-h.x,dz=g.z-h.z,d=Math.hypot(dx,dz);if(Math.hypot(w.x-h.x,w.z-h.z)<2.4){h.call=null;mount(p,w,h);if(p===ME)tip(TL('Atına bindin','Mounted'),1.2);continue}
       const st=Math.min(d,11*dt),ox=h.x,oz=h.z;h.x+=dx/d*st;h.z+=dz/d*st;h.a+=angD(h.a,Math.atan2(dx,dz))*Math.min(1,dt*6);collide(h,.9);h.mv=Math.hypot(h.x-ox,h.z-oz)/dt;h.y=groundAt(h.x,h.z);continue}}
     if(h.want!=null){const w=p.units.find(o=>o.k===h.want);if(!w||w.dead||w.wantH!==h.i)h.want=null;continue}if(!C||gtime()<(h.rest||0))continue;
-    const sl=C.stable[h.i%5],g=viaGate(h,{x:sl.x,z:sl.z}),dx=g.x-h.x,dz=g.z-h.z,d=Math.hypot(dx,dz);if(d>.6){const st=Math.min(d,3.4*dt);const ox=h.x,oz=h.z;h.x+=dx/d*st;h.z+=dz/d*st;h.a+=angD(h.a,Math.atan2(dx,dz))*Math.min(1,dt*5);collide(h,.9);h.mv=Math.hypot(h.x-ox,h.z-oz)/dt}else h.a+=angD(h.a,sl.a)*Math.min(1,dt*2);h.y=groundAt(h.x,h.z)}}
+    const sl=C.stable[h.i%10],g=viaGate(h,{x:sl.x,z:sl.z}),dx=g.x-h.x,dz=g.z-h.z,d=Math.hypot(dx,dz);if(d>.6){const st=Math.min(d,3.4*dt);const ox=h.x,oz=h.z;h.x+=dx/d*st;h.z+=dz/d*st;h.a+=angD(h.a,Math.atan2(dx,dz))*Math.min(1,dt*5);collide(h,.9);h.mv=Math.hypot(h.x-ox,h.z-oz)/dt}else h.a+=angD(h.a,sl.a)*Math.min(1,dt*2);h.y=groundAt(h.x,h.z)}}
 const unitById=id=>{const p=PL[Math.floor(id/64)];return p&&p.units.find(u=>u.id===id)};
 
 // ---------- collisions: trees, rocks, castle walls ----------
 function segPush(u,x1,z1,x2,z2,r){const dx=x2-x1,dz=z2-z1,l2=dx*dx+dz*dz||1e-9,t=clamp(((u.x-x1)*dx+(u.z-z1)*dz)/l2,0,1),cx=x1+dx*t,cz=z1+dz*t,ex=u.x-cx,ez=u.z-cz,d=Math.hypot(ex,ez);if(d<r){if(d<1e-4){u.x+=r;return}u.x=cx+ex/d*r;u.z=cz+ez/d*r}}
 function collide(u,R0){
   nodesNear(u.x,u.z,4,n=>{if(n.hp<=0||n.t===5)return;const r=(n.t<2?.55*n.s:1.4*n.s)+R0,dx=u.x-n.x,dz=u.z-n.z,d=Math.hypot(dx,dz);if(d<r&&d>1e-4){u.x=n.x+dx/d*r;u.z=n.z+dz/d*r}});
-  for(const c of S.castles){if(Math.abs(c.x-u.x)>CW+8||Math.abs(c.z-u.z)>CW+8)continue;if(CS[c.k].ruined)continue;for(const s of c.segs)segPush(u,s[0],s[1],s[2],s[3],s[4]+R0)}
+  for(const c of S.castles){if(Math.abs(c.x-u.x)>CW+8||Math.abs(c.z-u.z)>CW+8)continue;for(const s of c.segs)segPush(u,s[0],s[1],s[2],s[3],s[4]+R0);if(CS[c.k].ruined)for(const s of c.rsegs)segPush(u,s[0],s[1],s[2],s[3],s[4]+R0)}
   for(const o of SITES){if(!o.segs.length||Math.abs(o.x-u.x)>13||Math.abs(o.z-u.z)>13)continue;for(const s of o.segs)segPush(u,s[0],s[1],s[2],s[3],s[4]+R0)}
+  for(const o of LMK.list){if(Math.abs(o.x-u.x)>o.r+4||Math.abs(o.z-u.z)>o.r+4)continue;for(const s of o.segs)segPush(u,s[0],s[1],s[2],s[3],s[4]+R0)}
   const b=HALF-40;u.x=clamp(u.x,-b,b);u.z=clamp(u.z,-b,b)}
 
 // ---------- network ----------
@@ -178,7 +200,8 @@ if(!solo){try{NET.ch=A.sb.channel('mdn-'+A.room,{config:{broadcast:{self:false}}
   on('s',onState);on('h',m=>{const u=unitById(m.u);if(u&&PL[u.p].local)hurt(u,+m.d||0,PL[m.by]||null,+m.kx||0,+m.kz||0)});on('ch',m=>{const c=CS[m.c];if(c&&castleLocal(c))hurtCastle(c,+m.d||0,PL[m.by]||null)});
   on('claim',m=>{if(iAmHost())claim(+m.c,+m.p,gtime()<SETUP_T+6)});on('own',m=>{if(Array.isArray(m.o)&&gtime()<SETUP_T+4)m.o.forEach((o,k)=>{if(o!==CS[k].owner)setOwner(k,o)})});
   on('k',m=>{const k=PL[m.by];if(k&&k.local){k.gold+=m.c?CMD_G:KILL_G;if(m.c)k.kills++;if(k===ME)tip(m.c?TL(`Komutan yenildi! +${CMD_G} altın`,`Commander down! +${CMD_G} gold`):`+${KILL_G} 🪙`,1.5)}});
-  on('lt',m=>{const c=CS[m.c];if(c){c.gold=0;c.wpn=0;chestDirty=true}});on('tb',m=>{shellAdd(m.x0,m.y0,m.z0,m.x1,m.z1,m.d,(x,z)=>{craterAdd(x,z,m.r||2.6);if(m.f)fireAdd(x,z,m.f);snd('gulle',x,z,200,1)},m.ap);snd('top',m.x0,m.z0,260,1)});on('steal',m=>{const q=PL[m.p];if(q&&q.local){const k=q.hs.findIndex(h=>h.i===m.i);if(k>=0)q.hs.splice(k,1)}});on('wt',m=>{const o=SITES[m.i],c=o&&o.chests[m.j|0];if(c)c.taken=true});on('cg',m=>{if(Array.isArray(m.g)&&!iAmHost())m.g.forEach((g,k)=>{CS[k].gold=g});chestDirty=true});
+  on('lt',m=>{const c=CS[m.c];if(c){c.gold=0;c.wpn=0;chestDirty=true}});on('tb',m=>{shellAdd(m.x0,m.y0,m.z0,m.x1,m.z1,m.d,(x,z)=>{craterAdd(x,z,m.r||2.6);if(m.f)fireAdd(x,z,m.f);landFx(x,z)},m.ap);snd('top',m.x0,m.z0,260,1)});on('steal',m=>{const q=PL[m.p];if(q&&q.local){const k=q.hs.findIndex(h=>h.i===m.i);if(k>=0)q.hs.splice(k,1)}});on('wt',m=>{const o=SITES[m.i],c=o&&o.chests[m.j|0];if(c)c.taken=true});on('cg',m=>{if(Array.isArray(m.g)&&!iAmHost())m.g.forEach((g,k)=>{CS[k].gold=g});chestDirty=true});
+  on('dr',m=>{const id=+m.i;if(!drops.some(d=>d.id===id))drops.push({id,x:+m.x,z:+m.z,lv:clamp(m.lv|0,1,10),t:0})});on('dp',m=>{const k=drops.findIndex(d=>d.id===+m.i);if(k>=0)drops.splice(k,1)});
   on('cap',m=>{const p=PL[m.o];if(p&&CS[m.c]&&CS[m.c].owner!==m.o)takeCastle(+m.c,p)});
   on('cr',m=>{ruin(+m.c,PL[m.by]||null)});on('ah',m=>{const c=CS[m.c];if(c&&castleLocal(c))hurtArcher(m.c,m.i|0,+m.d||0,PL[m.by]||null)});on('ad',m=>{const c=CS[m.c];if(c&&c.ah)c.ah[m.i|0]=0});on('ar',m=>{const c=CS[m.c];if(c&&c.ah)c.ah[m.i|0]=ARCH_HP});on('f',m=>{bolts.push({x:+m.x,y:+m.y,z:+m.z,dx:+m.dx,dz:+m.dz,dy:+m.dy,t:0,vis:true})});on('out',m=>{const p=PL[m.p];if(p&&!p.local)eliminate(p)});
   NET.ch.subscribe(s=>{if(s==='SUBSCRIBED')NET.on=true})}catch(e){console.warn(e)}}
@@ -201,7 +224,7 @@ function setOwner(k,o){const c=CS[k];const was=c.owner;if(was!==o)c.ah=[ARCH_HP,
 // first come, first served: the first to tap a castle gets it (the host settles who was first)
 const isCenter0=k=>Math.hypot(CASTLES[k].x,CASTLES[k].z)<CENTER_R;
 // the middle castles are locked at the start, unless there are not enough others for everyone
-const isCenter=k=>isCenter0(k)&&CS.filter(c=>!isCenter0(c.k)).length>=PL.length;
+const isCenter=k=>false;     // every castle can be chosen at the start, the middle ones too
 function claim(k,pi,force){const c=CS[k],p=PL[pi];if(!c||!p||isCenter(k)||(!force&&gtime()>SETUP_T+2))return false;if(c.owner!=null&&c.owner!==pi)return false;if(p.home!=null&&p.home!==k)setOwner(p.home,null);p.home=k;setOwner(k,pi);c.hp=c.mhp=CASTLE_HP;if(!solo&&iAmHost())send('own',{o:CS.map(c=>c.owner)});return true}
 function wantCastle(k){if(gtime()>=SETUP_T)return;const c=CS[k];if(isCenter(k)){tip(TL('Ortadaki kaleler başlangıçta seçilemez. Savaş başlayınca alınabilir, içlerinde güçlü silahlar var.','The castles in the middle can\'t be chosen at the start. Take them once the battle begins: strong weapons wait inside.'),3);return}if(c.owner!=null&&c.owner!==ME.ix){tip(TL('Bu kaleyi başkası aldı','Someone else has this castle'));return}if(iAmHost())claim(k,ME.ix);else{send('claim',{c:k,p:ME.ix});claim(k,ME.ix)}SES.para&&SES.para()}
 // only the closing ring wears a castle down; a castle that falls to it is a ruin
@@ -227,6 +250,17 @@ function giveWeapon(p,lv){const c=p.units[0],men=p.units.filter(o=>o.k>0&&!o.dea
   else if(men[0]&&lv>(men[0].wl||1)){men[0].wl=lv;got=TL('bir askerine','to one of your soldiers')}
   if(p===ME){SES.para&&SES.para();tip(got?TL(`⚔️ Seviye ${lv} silah ${got}!`,`⚔️ Level ${lv} weapon ${got}!`)+(down?TL(` Eski silahı (Sv ${down}) bir askere geçti.`,` His old one (Lv ${down}) went to a soldier.`):''):TL(`Seviye ${lv} silah buldun ama ordunda daha iyileri var.`,`You found a level ${lv} weapon, but your army has better.`),3);if(lv>=9)feed(TL(`${p.name} efsanevi bir silah buldu!`,`${p.name} found a legendary weapon!`))}
   else if(lv>=9)feed(TL(`${p.name} efsanevi bir silah buldu!`,`${p.name} found a legendary weapon!`))}
+// a fallen man's found weapon drops where he fell, glowing in its level's colour; any commander who walks over it takes it
+const drops=[];let dropN=0;
+function dropAdd(p,x,z,lv,id){if(id==null){id=p.ix*10000+(dropN++);send('dr',{i:id,x:+x.toFixed(1),z:+z.toFixed(1),lv})}if(drops.some(d=>d.id===id))return;drops.push({id,x,z,lv,t:0});if(drops.length>40)drops.shift()}
+function dropTick(p){const u=p.units[0];if(!u||u.dead)return;for(let i=drops.length-1;i>=0;i--){const d=drops[i];if(Math.abs(d.x-u.x)>2||Math.abs(d.z-u.z)>2)continue;drops.splice(i,1);send('dp',{i:d.id});chips(d.x,groundAt(d.x,d.z)+.8,d.z,LVC[d.lv-1],12,3);giveWeapon(p,d.lv)}}
+const DROPM=new THREE.InstancedMesh(new THREE.BoxGeometry(.09,.03,1.05).translate(0,0,.2),new THREE.MeshStandardMaterial({color:'#ffffff',metalness:.8,roughness:.25,emissive:'#ffffff',emissiveIntensity:.25}),40),
+  DROPG=new THREE.InstancedMesh(new THREE.BoxGeometry(.34,.06,.07).translate(0,0,-.32),new THREE.MeshStandardMaterial({color:'#c9a640',metalness:.7,roughness:.35}),40),
+  DROPB=new THREE.InstancedMesh(new THREE.CylinderGeometry(.18,.4,7,10,1,true).translate(0,3.5,0),new THREE.MeshBasicMaterial({transparent:true,opacity:.28,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide}),40);
+for(const m of[DROPM,DROPG,DROPB]){m.count=0;m.frustumCulled=false;scene.add(m)}DROPM.setColorAt(0,new THREE.Color());DROPB.setColorAt(0,new THREE.Color());const _dc=new THREE.Color();
+function dropsDraw(t){let n=0;for(const d of drops){const y=Math.max(groundAt(d.x,d.z),0)+.55+Math.sin(t*2.4+d.id)*.12;q.setFromAxisAngle(UP,t*1.4+d.id);m5.compose(vp.set(d.x,y,d.z),q,vs.set(1,1,1));DROPM.setMatrixAt(n,m5);DROPG.setMatrixAt(n,m5);_dc.set(LVC[d.lv-1]);DROPM.setColorAt(n,_dc);
+  m5.compose(vp.set(d.x,Math.max(groundAt(d.x,d.z),0),d.z),q.identity(),vs.set(1,1,1));DROPB.setMatrixAt(n,m5);DROPB.setColorAt(n,_dc);n++}
+  for(const m of[DROPM,DROPG,DROPB]){m.count=n;m.instanceMatrix.needsUpdate=true;if(m.instanceColor)m.instanceColor.needsUpdate=true}}
 function siteTick(p){const u=p.units[0];if(!u||u.dead)return;for(const c of CHESTS){if(c.taken||Math.abs(c.x-u.x)>2.3||Math.abs(c.z-u.z)>2.3)continue;
   c.taken=true;send('wt',{i:c.i,j:c.j,by:p.ix});chips(c.x,groundAt(c.x,c.z)+1,c.z,LVC[c.lv-1],16,3);giveWeapon(p,c.lv)}}
 const siteVia=(u,g)=>viaSite(SITES,u,g),siteAt=(x,z)=>siteAtP(SITES,x,z);
@@ -259,7 +293,7 @@ function gunTick(p,dt){if(!p.local)return;for(let gi=p.guns.length-1;gi>=0;gi--)
   if(tg&&gunner&&c.still>.8){gunner.gunOp=c.id;const want=Math.atan2(tg.x-c.x,tg.z-c.z),da=angD(c.a,want);c.a+=Math.sign(da)*Math.min(Math.abs(da),1.3*dt);
     if(Math.abs(da)<.12&&c.cd<=0){c.cd=GUN.cd;const d=Math.hypot(tg.x-c.x,tg.z-c.z),dur=.7+d/55,lead=tg.vx!=null?dur:0,tx=tg.x+(tg.vx||0)*lead+(Math.random()-.5)*d*.05,tz=tg.z+(tg.vz||0)*lead+(Math.random()-.5)*d*.05;
       const mx=c.x+Math.sin(c.a)*1.7,mz=c.z+Math.cos(c.a)*1.7,my=groundAt(c.x,c.z)+1,fire=Math.random()<.4?9+Math.random()*6:0,r=2.2+Math.random()*1.2;
-      shellAdd(mx,my,mz,tx,tz,dur,(x,z)=>{craterAdd(x,z,r);if(fire)fireAdd(x,z,fire);blastAt(p,x,z,tg.cs);snd('gulle',x,z,200,1)});send('tb',{x0:+mx.toFixed(1),y0:+my.toFixed(1),z0:+mz.toFixed(1),x1:+tx.toFixed(1),z1:+tz.toFixed(1),d:+dur.toFixed(2),f:+fire.toFixed(1),r:+r.toFixed(1)});snd('top',c.x,c.z,260,1);
+      shellAdd(mx,my,mz,tx,tz,dur,(x,z)=>{craterAdd(x,z,r);if(fire)fireAdd(x,z,fire);blastAt(p,x,z,tg.cs);landFx(x,z)});send('tb',{x0:+mx.toFixed(1),y0:+my.toFixed(1),z0:+mz.toFixed(1),x1:+tx.toFixed(1),z1:+tz.toFixed(1),d:+dur.toFixed(2),f:+fire.toFixed(1),r:+r.toFixed(1)});snd('top',c.x,c.z,260,1);
       c.x-=Math.sin(c.a)*.3;c.z-=Math.cos(c.a)*.3}}}}
 // ---------- the commander at the gun: he stands behind it and lays it himself (drag or stick to aim, ⚔️ to fire) ----------
 let gunMode=null;const SHOT={v:44,g:12};
@@ -272,7 +306,7 @@ function enterGun(c){const u=ME.units[0];if(!u||u.dead)return;if(u.horse)setHors
 function leaveGun(){if(gunMode){gunMode.man=false;gunMode=null}}
 function gunFire(){const c=gunMode;if(!c||c.cd>0)return;const B=ballistic(c);c.cd=3.2;const fire=Math.random()<.45?9+Math.random()*6:0,r=2.4+Math.random()*1.2,p=ME;
   let cs=null;for(const C of S.castles)if(Math.abs(B.x-C.x)<CW+2&&Math.abs(B.z-C.z)<CW+2)cs=C;
-  shellAdd(B.x0,B.y0,B.z0,B.x,B.z,B.t,(x,z)=>{craterAdd(x,z,r);if(fire)fireAdd(x,z,fire);blastAt(p,x,z,cs)},B.apex);send('tb',{x0:+B.x0.toFixed(1),y0:+B.y0.toFixed(1),z0:+B.z0.toFixed(1),x1:+B.x.toFixed(1),z1:+B.z.toFixed(1),d:+B.t.toFixed(2),f:+fire.toFixed(1),r:+r.toFixed(1),ap:+B.apex.toFixed(1)});
+  shellAdd(B.x0,B.y0,B.z0,B.x,B.z,B.t,(x,z)=>{craterAdd(x,z,r);if(fire)fireAdd(x,z,fire);blastAt(p,x,z,cs);landFx(x,z)},B.apex);send('tb',{x0:+B.x0.toFixed(1),y0:+B.y0.toFixed(1),z0:+B.z0.toFixed(1),x1:+B.x.toFixed(1),z1:+B.z.toFixed(1),d:+B.t.toFixed(2),f:+fire.toFixed(1),r:+r.toFixed(1),ap:+B.apex.toFixed(1)});
   snd('top',c.x,c.z,260,1.2);c.kick=1;camShake=.5}
 let camShake=0;
 // the commander hitches the nearest cannon to his horse, or lets it go
@@ -302,7 +336,7 @@ function hurt(u,d,by,kx,kz){if(u.dead)return;const p=PL[u.p],T=unitStats(p,u);d*
   if(by&&p.bot)p.threat={x:u.x,z:u.z,t:gtime(),by:by.ix};
   if(u.hp<=0)die(u,by)}
 function hitUnit(v,d,by,kx,kz){const p=PL[v.p];if(by===ME||p===ME){const T=unitStats(p,v);popNum(v.x,v.y+2.3,v.z,Math.round(d*(1-(T.zr+.08*p.lv.z))),by===ME?'#ffe08a':'#ff6a5a')}if(p.local)hurt(v,d,by,kx,kz);else send('h',{u:v.id,d:+d.toFixed(1),by:by?by.ix:-1,kx:+kx.toFixed(2),kz:+kz.toFixed(2)});v.flash=1}
-function die(u,by){const p=PL[u.p];u.dead=true;u.hp=0;u.dieT=gtime();u.act=null;if(u.horse){const h=p.hs.find(o=>o.rider===u.k);u.horse=false;if(h){h.rider=null;h.rest=gtime()+4}}if(u.wantH!=null){const h=p.hs.find(o=>o.i===u.wantH);if(h)h.want=null;u.wantH=null}
+function die(u,by){const p=PL[u.p];u.dead=true;u.hp=0;u.dieT=gtime();u.act=null;if((u.wl||1)>1){dropAdd(p,u.x,u.z,u.wl);u.wl=1}if(u.horse){const h=p.hs.find(o=>o.rider===u.k);u.horse=false;if(h){h.rider=null;h.rest=gtime()+4}}if(u.wantH!=null){const h=p.hs.find(o=>o.i===u.wantH);if(h)h.want=null;u.wantH=null}
   if(by&&by!==p){if(by.local){by.gold+=u.k===0?CMD_G:KILL_G;if(u.k===0)by.kills++;if(by===ME)tip(u.k===0?TL(`Komutan yenildi! +${CMD_G} altın`,`Commander down! +${CMD_G} gold`):`+${KILL_G} 🪙`,1.5)}else send('k',{v:p.ix,by:by.ix,c:u.k===0?1:0})}
   if(u.k===0){feed(by&&by!==p?`${by.name} ⚔️ ${p.name}`:`☠️ ${p.name}`);
     if(p.home!=null&&!CS[p.home].ruined){p.respawn=gtime()+15;if(p===ME)tip(TL('Komutanın düştü! 15 saniye sonra kalende dirilirsin.','Your commander fell! You rise again at your castle in 15 s.'),4)}
@@ -315,7 +349,7 @@ function castleNear(pi,x,z,r){let best=null,bd=r;for(const c of S.castles){const
 const castleGap=(k,x,z)=>{const C=CASTLES[k];return Math.max(0,Math.max(Math.abs(C.x-x),Math.abs(C.z-z))-CW-1)};
 // a strike or a shot; castles are hit at their walls
 // sounds come from where they happen: quieter with distance, and to the left or right of the screen
-function snd(f,x,z,R0,v0){const dx=x-cam.x,dz=z-cam.z,d=Math.hypot(dx,dz);if(d>R0||!SES[f])return;const v=Math.pow(1-d/R0,1.6)*v0,pan=clamp((dx*Math.cos(cy)-dz*Math.sin(cy))/Math.max(d,10),-1,1)*.8;try{SES[f](v,pan)}catch(e){}}
+function snd(f,x,z,R0,v0,a3){const dx=x-cam.x,dz=z-cam.z,d=Math.hypot(dx,dz);if(d>R0||!SES[f])return;const v=Math.pow(1-d/R0,1.6)*v0,pan=clamp((dx*Math.cos(cy)-dz*Math.sin(cy))/Math.max(d,10),-1,1)*.8;try{SES[f](v,pan,a3)}catch(e){}}
 function strike(p,u,tgt){if(!tgt||tgt.cs)return;if(tgt.arch){const c=CS[tgt.arch.c];if(c.ah[tgt.arch.i]<=0)return;const T=unitStats(p,u);if(T.okR)shoot(p,u,tgt,T.ok*wMul(p,u));return}const T=unitStats(p,u),d=Math.hypot(tgt.x-u.x,tgt.z-u.z),ranged=T.okR&&d>T.rng+1.2,k=wMul(p,u)*(u.horse?1.25:1)*(gtime()<(u.ambB||0)?1.6:1);
   if(ranged){shoot(p,u,tgt,T.ok*k);return}
   const dx=tgt.x-u.x,dz=tgt.z-u.z,l=Math.hypot(dx,dz)||1;hitUnit(tgt,T.dmg*k*(.9+Math.random()*.2),p,dx/l*(u.horse?3.5:2),dz/l*(u.horse?3.5:2));chips(tgt.x,tgt.y+1.3,tgt.z,'#ffe8b0',4,3);
@@ -384,21 +418,21 @@ function stepUnit(p,u,dt,t){u.cd=Math.max(0,u.cd-dt);u.flash=Math.max(0,u.flash-
   if(il>.3&&!u.act){const got=Math.hypot(u.x-ox,u.z-oz)/Math.max(1e-3,s2*dt*il);u.stk=got<.25?(u.stk||0)+dt:Math.max(0,(u.stk||0)-dt);if(u.stk>.5){u.stk=0;u.side=1.2+Math.random();u.sideD=(u.sideD||1)*(Math.random()<.7?-1:1)}}
   u.vx=(u.x-ox)/Math.max(dt,1e-3);u.vz=(u.z-oz)/Math.max(dt,1e-3);u.mv=Math.hypot(u.vx,u.vz);u.y=Math.max(groundAt(u.x,u.z),-1.15);
   if(u.wantH!=null){const h=p.hs.find(o=>o.i===u.wantH);if(h&&Math.hypot(h.x-u.x,h.z-u.z)<2)mount(p,u,h)}
-  if(u.act){u.act.t+=dt;if(!u.act.hit&&u.act.t>=u.act.dur*.5){u.act.hit=true;const tg=u.act.tgt;if(tg&&(tg.cs?!CS[tg.k].ruined:!tg.dead)){const d=tg.cs?castleGap(tg.k,u.x,u.z):Math.hypot(tg.x-u.x,tg.z-u.z);if(d<=(T.okR||T.rng+.8+(u.horse?.8:0)))strike(p,u,tg)}}if(u.act.t>=u.act.dur)u.act=null}
-  const z=zoneAt(t);if(outside(u.x,u.z,z.h)){u.zt=(u.zt||0)+dt;if(u.zt>=1){u.zt-=1;hurt(u,z.d,null,0,0)}}
+  if(u.act){u.act.t+=dt;if(!u.act.hit&&u.act.t>=u.act.dur*.5){u.act.hit=true;const tg=u.act.tgt;let sh=false;if(tg&&(tg.cs?!CS[tg.k].ruined:!tg.dead)){const d=tg.cs?castleGap(tg.k,u.x,u.z):Math.hypot(tg.x-u.x,tg.z-u.z);if(d<=(T.okR||T.rng+.8+(u.horse?.8:0))){strike(p,u,tg);sh=true}}if(!sh&&T.okR&&u.k===0){const a=u.a;shoot(p,u,{x:u.x+Math.sin(a)*40,z:u.z+Math.cos(a)*40,y:u.y+.6},T.ok*wMul(p,u))}}if(u.act.t>=u.act.dur)u.act=null}
+  const z=zoneAt(t);if(outside(u.x,u.z,z)){u.zt=(u.zt||0)+dt;if(u.zt>=1){u.zt-=1;hurt(u,z.d,null,0,0)}}
   else if(t-(u.hurtT||-99)>8&&u.hp<u.mhp)u.hp=Math.min(u.mhp,u.hp+dt*.8)}
 // walls have one way through: anyone going in or out of a castle walks through its gate
 function localIn(C,x,z){const dx=x-C.x,dz=z-C.z,c=Math.cos(C.a),s=Math.sin(C.a);return{x:dx*c-dz*s,z:dx*s+dz*c}}
 function segBox(a,b,h){let t0=0,t1=1;const dx=b.x-a.x,dz=b.z-a.z;for(const[p,d]of[[a.x,dx],[a.z,dz]]){if(Math.abs(d)<1e-9){if(p<-h||p>h)return false;continue}let ta=(-h-p)/d,tb=(h-p)/d;if(ta>tb)[ta,tb]=[tb,ta];t0=Math.max(t0,ta);t1=Math.min(t1,tb);if(t0>t1)return false}return true}
 function viaGate(u,g){
   // first: if we stand inside a castle and the goal is outside it, out through its gate
-  for(const C of S.castles){if(CS[C.k].ruined||Math.abs(u.x-C.x)>CW||Math.abs(u.z-C.z)>CW)continue;const a=localIn(C,u.x,u.z),b=localIn(C,g.x,g.z);
+  for(const C of S.castles){if(Math.abs(u.x-C.x)>CW||Math.abs(u.z-C.z)>CW)continue;const a=localIn(C,u.x,u.z),b=localIn(C,g.x,g.z);
     if(Math.max(Math.abs(a.x),Math.abs(a.z))<CW-.5&&!(Math.max(Math.abs(b.x),Math.abs(b.z))<CW-.5)){const inner=C.W(0,CW-3.5),outer=C.W(0,CW+4.5);if(Math.abs(a.x)>2.2||a.z<CW-4.5)return{x:inner.x,z:inner.z,stop:.6};return{x:outer.x,z:outer.z,stop:.6}}}
   // next: a goal inside a castle is reached through its gate
-  let T=g;for(const C of S.castles){if(CS[C.k].ruined||Math.abs(g.x-C.x)>CW||Math.abs(g.z-C.z)>CW)continue;const b=localIn(C,g.x,g.z);if(Math.max(Math.abs(b.x),Math.abs(b.z))>=CW-.5)continue;
+  let T=g;for(const C of S.castles){if(Math.abs(g.x-C.x)>CW||Math.abs(g.z-C.z)>CW)continue;const b=localIn(C,g.x,g.z);if(Math.max(Math.abs(b.x),Math.abs(b.z))>=CW-.5)continue;
     const a=localIn(C,u.x,u.z);if(Math.max(Math.abs(a.x),Math.abs(a.z))<CW-.5)break;if(Math.abs(a.x)<2.2&&a.z>CW-1&&a.z<CW+6){const inner=C.W(0,CW-3.5);return{x:inner.x,z:inner.z,stop:.6}}const o=C.W(0,CW+4.5);T={x:o.x,z:o.z,stop:.6};break}
   // last: the nearest castle standing in the way is walked round by its corners
-  let best=null,bd=1e9;for(const C of S.castles){if(CS[C.k].ruined)continue;const d=Math.hypot(C.x-u.x,C.z-u.z);if(d>bd||d>Math.hypot(T.x-u.x,T.z-u.z)+CW*2)continue;const a=localIn(C,u.x,u.z),b=localIn(C,T.x,T.z);if(Math.max(Math.abs(a.x),Math.abs(a.z))<CW-.5||Math.max(Math.abs(b.x),Math.abs(b.z))<CW-.5)continue;if(segBox(a,b,CW+1.5)){bd=d;best={C,a,b}}}
+  let best=null,bd=1e9;for(const C of S.castles){const d=Math.hypot(C.x-u.x,C.z-u.z);if(d>bd||d>Math.hypot(T.x-u.x,T.z-u.z)+CW*2)continue;const a=localIn(C,u.x,u.z),b=localIn(C,T.x,T.z);if(Math.max(Math.abs(a.x),Math.abs(a.z))<CW-.5||Math.max(Math.abs(b.x),Math.abs(b.z))<CW-.5)continue;if(segBox(a,b,CW+1.5)){bd=d;best={C,a,b}}}
   if(best){const {C,a,b}=best,E=CW+5;let cc=null,cd=1e9;for(const c of[[E,E],[-E,E],[E,-E],[-E,-E]]){const p={x:c[0],z:c[1]};if(segBox(a,p,CW+1.2))continue;const d=Math.hypot(p.x-a.x,p.z-a.z)+Math.hypot(b.x-p.x,b.z-p.z);if(d<cd){cd=d;cc=p}}
     if(!cc){let m=1e9;for(const c of[[E,E],[-E,E],[E,-E],[-E,-E]]){const d=Math.hypot(c[0]-a.x,c[1]-a.z);if(d<m){m=d;cc={x:c[0],z:c[1]}}}}const w=C.W(cc.x,cc.z);return{x:w.x,z:w.z,stop:1.2}}
   return T}
@@ -424,15 +458,17 @@ function botPlan(p,t){if(p.out||!p.units.length)return;const u=p.units[0];
   if(u.dead){p.mode='kale';return}
   const e=enemyNear(p.ix,u.x,u.z,45);if(e){p.mode='hucum';p.goal={x:e.x,z:e.z,u:e.id};return}
   if(p.goal&&p.goal.c!=null&&!CS[p.goal.c].ruined&&CS[p.goal.c].owner!==p.ix&&p.mode==='hucum')return;
-  let best=null,bd=1e9;for(const c of CS){if(c.ruined||c.owner===p.ix)continue;const C=CASTLES[c.k];if(outside(C.x,C.z,z.h-30))continue;const d=Math.hypot(C.x-u.x,C.z-u.z)+(c.owner==null?0:260)+(c.owner!=null&&PL[c.owner].units.filter(o=>!o.dead).length>alive?300:0);if(d<bd){bd=d;best=c}}
+  let best=null,bd=1e9;for(const c of CS){if(c.ruined||c.owner===p.ix)continue;const C=CASTLES[c.k];if(outside(C.x,C.z,z,30))continue;const d=Math.hypot(C.x-u.x,C.z-u.z)+(c.owner==null?0:260)+(c.owner!=null&&PL[c.owner].units.filter(o=>!o.dead).length>alive?300:0);if(d<bd){bd=d;best=c}}
   if(best&&bd<750){p.mode='hucum';const C=CASTLES[best.k];p.goal={x:C.x,z:C.z,c:best.k};return}
   p.mode='takip'}
 function botCmdThink(p,u,t,dt){u.think=(u.think||0)-dt;if(u.think>0)return;u.think=.3;const T=unitStats(p,u),z=zoneAt(t);
   const e=enemyNear(p.ix,u.x,u.z,T.okR?24:9);
   if(e&&u.hp>u.mhp*.3){const d=Math.hypot(e.x-u.x,e.z-u.z),want=T.okR?16:T.rng-.2;u.go=d>want?{x:e.x,z:e.z,stop:want}:T.okR&&d<8?{x:u.x+(u.x-e.x),z:u.z+(u.z-e.z),stop:0}:null;u.tgt=e;u.fight=d<=want+.4;return}
   u.fight=false;u.tgt=null;
+  // the ring is coming: get inside the next square in good time
+  if(t>SETUP_T&&(z.shr||z.wait<45)&&outside(u.x,u.z,{h:z.next,cx:z.ncx,cz:z.ncz,r:Math.min(z.next*.3,70)},-2)){u.go={x:z.ncx+(u.x-z.ncx)*.2,z:z.ncz+(u.z-z.ncz)*.2,stop:4};return}
   if(u.wantH!=null){const h=p.hs.find(o=>o.i===u.wantH);if(h){u.go={x:h.x,z:h.z,stop:.5};return}u.wantH=null}
-  {let best=null,bd=110;for(const c of CHESTS){if(c.taken)continue;const d=Math.hypot(c.x-u.x,c.z-u.z);if(d<bd&&!outside(c.x,c.z,z.h-10)){bd=d;best=c}}if(best){u.go={x:best.x,z:best.z,stop:.3};return}}
+  {let best=null,bd=110;for(const c of CHESTS){if(c.taken)continue;const d=Math.hypot(c.x-u.x,c.z-u.z);if(d<bd&&!outside(c.x,c.z,z,10)){bd=d;best=c}}if(best){u.go={x:best.x,z:best.z,stop:.3};return}}
   {let ch=null,bd=70;for(const C of S.castles){const c=CS[C.k];if((c.gold<=0&&!c.wpn)||c.ruined||(c.owner!=null&&c.owner!==p.ix))continue;const d=Math.hypot(C.chest.x-u.x,C.chest.z-u.z);if(d<bd){bd=d;ch=C}}if(ch){u.go={x:ch.chest.x,z:ch.chest.z,stop:.5};return}}
   if(p.mode==='hucum'&&p.goal){const s=p.units.filter(o=>o.k>0&&!o.dead);let cx=0,cz=0;for(const o of s){cx+=o.x;cz+=o.z}if(s.length){cx/=s.length;cz/=s.length}else{cx=p.goal.x;cz=p.goal.z}
     const dx=p.goal.x-cx,dz=p.goal.z-cz,l=Math.hypot(dx,dz)||1;u.go={x:cx-dx/l*6,z:cz-dz/l*6,stop:1.5};
@@ -449,7 +485,7 @@ function buy(p,k,w){const home=p.home!=null&&!CS[p.home].ruined?S.castles[p.home
     if(p.army[i-1].g)nu.g=p.army[i-1].g;const old=p.units.findIndex(o=>o.k===i);if(old>=0)p.units[old]=nu;else p.units.push(nu);p.army[i-1].w=ww;
     if(p.army[i-1].h)setHorse(p,i,true);return true}
   if(k==='top'){if(p.gold<COST.top||p.guns.length>=GUN.max||!home)return false;p.gold-=COST.top;let i=0;while(p.guns.some(g=>g.i===i))i++;const y=home.yard;p.guns.push(mkGun(p,i,y.x+3,y.z+3,home.a,p===ME?SEL||1:1));if(p===ME)tip(TL('Top avluda hazır! Atlıyken yanına git ve 💣 Bağla\'ya bas; ya da bölüğündeki atlı bir asker onu çeker. Durunca düşmana kendiliğinden ateş eder.','Cannon ready in the yard! Ride up to it and press 💣 Hitch, or a mounted man of its squad tows it. When it stops it fires at enemies by itself.'),5);return true}
-  if(k==='at'){if(p.gold<COST.at||p.hs.length>=5||!home)return false;p.gold-=COST.at;let i=0;while(p.hs.some(h=>h.i===i))i++;const sl=home.stable[i%5];p.hs.push(mkHorse(p,i,sl.x,sl.z,sl.a));return true}
+  if(k==='at'){if(p.gold<COST.at||p.hs.length>=MAXH||!home)return false;p.gold-=COST.at;let i=0;while(p.hs.some(h=>h.i===i))i++;const sl=home.stable[i%10];p.hs.push(mkHorse(p,i,sl.x,sl.z,sl.a));return true}
   if(k==='onar'){const c=CS[p.home];if(!c||c.ruined||p.gold<COST.onar||c.hp>=c.mhp)return false;p.gold-=COST.onar;c.hp=Math.min(c.mhp,c.hp+400);return true}
   if(k==='iyiles'){const u=p.units[0];if(!u||u.dead||p.gold<COST.iyiles||u.hp>=u.mhp)return false;p.gold-=COST.iyiles;u.hp=Math.min(u.mhp,u.hp+100);return true}
   return false}
@@ -460,7 +496,7 @@ function setHorse(p,i,on){const u=p.units.find(o=>o.k===i);if(i===0)p.cmdHorse=o
   if(i===0&&p===ME){const h=freeHorse(p,u.x,u.z,4.5);if(h){mount(p,u,h);return true}
     // an enemy's horse standing loose: take it
     const st=foeHorse(p,u.x,u.z,4.5);if(st){stealHorse(p,st.q,st.h);mount(p,u,st.h);tip(TL('Düşmanın atını aldın! 🐎','You took an enemy horse! 🐎'),2.2);return true}p.cmdHorse=false;const c=freeHorse(p,u.x,u.z,1e9);
-    if(c){c.call=0;tip(TL('Islık çaldın: atın dörtnala geliyor 🐎','You whistled: your horse is on its way 🐎'),2.5);snd('kisne',c.x,c.z,80,.6);return false}
+    if(c){c.call=0;tip(TL('Islık çaldın: atın dörtnala geliyor 🐎','You whistled: your horse is on its way 🐎'),2.5);snd('kisne2',c.x,c.z,80,.6);return false}
     tip(TL('Boşta atın yok. Kalende 🔨 menüsünden at alabilirsin.','No free horse. Buy one at your castle (🔨).'),3);return false}
   const h=freeHorse(p,u.x,u.z,1e9);if(!h){if(i===0)p.cmdHorse=false;else p.army[i-1].h=false;return false}h.want=i;u.wantH=h.i;return true}
 function setWeapon(p,i,w){p.army[i-1].w=w;const u=p.units.find(o=>o.k===i);if(!u||u.dead||u.w===w)return;const f=u.hp/u.mhp;u.w=w;u.mhp=UNIT[w].hp+(u.horse?HORSE_HP:0);u.hp=u.mhp*f}
@@ -513,8 +549,11 @@ function guideArrow(){const A=$('mGArr');if(!guide||!started||ME.out||gunMode||m
   const d=Math.hypot(o.x-u.x,o.z-u.z);if(d<3){A.style.display='none';return}
   _gv.set(o.x,groundAt(o.x,o.z)+2.2,o.z).applyMatrix4(camera.matrixWorldInverse);const behind=_gv.z>0;_gv.applyMatrix4(camera.projectionMatrix);
   let x=_gv.x,y=_gv.y;if(behind){x=-x;y=-y}const W=innerWidth,H=innerHeight,on=!behind&&Math.abs(x)<.85&&Math.abs(y)<.8;
-  let sx,sy,rot;if(on){sx=(x+1)/2*W;sy=(1-y)/2*H-26-Math.sin(performance.now()/180)*5;rot=180}else{const l=Math.hypot(x,y)||1,k=Math.min(.82/Math.abs(x/l||1e-6),.7/Math.abs(y/l||1e-6));sx=(1+x/l*k)/2*W;sy=(1-y/l*k)/2*H;rot=Math.atan2(x/l,y/l)*180/Math.PI}
+  let sx,sy,rot;if(on){sx=(x+1)/2*W;sy=(1-y)/2*H-26-Math.sin(performance.now()/180)*5;rot=180}else{const l=Math.hypot(x,y)||1,ex=x/l,ey=y/l;sx=W/2+ex*W*.3;sy=H*.47-ey*H*.27;rot=Math.atan2(ex,ey)*180/Math.PI}
   A.style.display='block';A.style.left=sx+'px';A.style.top=sy+'px';A.firstChild.style.transform=`rotate(${rot}deg)`;const t=Math.round(d)+' m';if(A.lastChild.textContent!==t)A.lastChild.textContent=t}
+// a ball landing: a thud and a crater on land; in water a muffled boom and a column of spray
+function landFx(x,z){if(groundAt(x,z)<-.4){splashAt(x,z,2.4);snd('suBomba',x,z,220,1)}else snd('gulle',x,z,200,1)}
+function splashAt(x,z,k=1){chips(x,.1,z,'#e4f3ff',Math.round(10*k),2.6*k);smokeAt(x,.3,z,Math.max(1,Math.round(2*k)),1.1*k,'#eef6fb')}
 let markT=0;function markAt(x,z,c){const m=S.fx.mark;m.visible=true;m.position.set(x,groundAt(x,z)+.2,z);m.material.color.set(c);markT=1.5}
 cv.addEventListener('pointerdown',e=>{SES.init&&SES.init();try{cv.setPointerCapture(e.pointerId)}catch(_){}
   if(e.pointerType!=='mouse'&&!joy){const c=joyC();if(Math.hypot(e.clientX-c.x,e.clientY-c.y)<Math.min(150,innerHeight*.36)){joy={id:e.pointerId,x:c.x,y:c.y};const J=$('mJoy');J.style.display='block';J.style.left=c.x+'px';J.style.top=c.y+'px';joyMove(e);return}}
@@ -562,7 +601,7 @@ function openShop(){if(ME.out)return;const pn=mkPanel(`<h2>${TL('Kale','Castle')
       ['kule',TL('Kule okçuları','Tower archers'),ME.lv.k<3?COST.kule[ME.lv.k]:null,`${ME.lv.k}/3 · ${TL('kale daha sık ve sağlam vurur','the castle shoots faster and holds better')}`],
       ['askerK',TL('Kılıçlı asker al','Hire a swordsman'),have<MAXMEN(ME)?COST.asker:null,TL(`ordunda ${have} asker · seçili bölüğe katılır`,`${have} soldiers · joins the chosen squad`)],['askerA',TL('Arbaletçi asker al','Hire a crossbowman'),have<MAXMEN(ME)?COST.asker:null,TL('kalende çıkar','comes out at your castle')],
       ['top',TL('Sahra topu','Field cannon'),ME.guns.length<GUN.max?COST.top:null,TL(`${ME.guns.length}/${GUN.max} · atla çekilir: atlıyken yanına gidip 💣 Bağla'ya bas, ya da bölüğündeki atlı bir asker çeker · durunca yanındakiler ateş eder`,`${ME.guns.length}/${GUN.max} · drawn by a horse: ride up to it and press 💣 Hitch, or a mounted man of its squad tows it · when it stops, men beside it fire`)],
-      ['at',TL('At al','Buy a horse'),ME.hs.length<5?COST.at:null,TL(`${ME.hs.length}/5 at · kalenin ahırına gelir`,`${ME.hs.length}/5 horses · it comes to your castle stable`)],
+      ['at',TL('At al','Buy a horse'),ME.hs.length<MAXH?COST.at:null,TL(`${ME.hs.length}/${MAXH} at · kalenin ahırına gelir`,`${ME.hs.length}/${MAXH} horses · it comes to your castle stable`)],
       ['onar',TL('Surları onar (+400)','Repair the walls (+400)'),C&&!C.ruined&&C.hp<C.mhp?COST.onar:null,C?`${Math.round(C.hp)}/${C.mhp}`:''],['iyiles',TL('Komutanı iyileştir (+100)','Heal the commander (+100)'),COST.iyiles,'']];
     const s2=JSON.stringify(rows)+Math.floor(ME.gold/10);if(s2===sig)return;sig=s2;box.textContent='';
     for(const[k,ad,c,sub]of rows){const row=document.createElement('div');row.className='row';const b=document.createElement('button');b.innerHTML=`${ad}${c!=null?` · 🪙${c}`:''}<small>${c==null&&(k==='silah'||k==='zirh'||k==='kule')?TL('en üst seviye','maxed'):sub}</small>`;b.disabled=c==null||ME.gold<c;
@@ -591,7 +630,49 @@ function openMenu(){const pn=mkPanel(`<h2>${TL('Büyük Harita','Big Map')}</h2>
   <p style="text-align:left;font-size:12.5px;line-height:1.45">${TL('Sol tarafa basılı tutup kaydır: komutanı yürüt. Sağ tarafta kaydır: bak, iki parmak: yakınlaş. Ekrana kısa dokun: askerlere emir ver (düşmana dokun: saldır, kaleye dokun: kuşat ya da koru, boş yere dokun: oraya git). Büyük düğme: komutan vurur. Ordu üç bölüktür (I, II, III): üstteki düğmelerle bölüğü seç, emir sadece ona gider; Ordu panelinden askerleri bölüklere dağıt. 🌲 Pusu: bölük saklanır, düşman yaklaşınca birden ve güçlü saldırır. Silahların seviyesi 1-10: haritadaki kulelerde, evlerde ve gizli yerlerde bulunur, ortaya yaklaştıkça daha iyileri çıkar. Kale almak: komutanınla kalenin avlusuna gir, içeride düşman kalmayınca 10 saniye bekle. Altın yalnızca düşman öldürmekten ve kale avlularındaki sandıklardan gelir. Atlar kalenin ahırında durur: binmek için yanına git (🐎 düğmesi). Mor duvar haritanın kenarlarından içeri kapanır. Bilgisayarda: WASD, fare, boşluk, 1-4 emirler, B kale, O ordu, M harita.','Hold and drag on the left: walk your commander. Drag on the right: look, two fingers: zoom. A short tap on the land orders your soldiers (tap an enemy: attack, a castle: besiege or guard, open ground: go there). Big button: your commander strikes. The army has three squads (I, II, III): pick a squad with the buttons above the orders and the order goes to it alone; share your men out in the Army panel. 🌲 Ambush: the squad hides and strikes hard when an enemy comes close. Weapons have levels 1-10: find them in towers, cottages and hidden places, better ones nearer the middle. To take a castle: bring your commander into its yard and hold it for 10 seconds with no defenders inside. Gold comes only from kills and from the chests in castle yards. Horses wait in the castle stable: walk up to one to mount (🐎 button). The purple wall closes in from the map edges. On a computer: WASD, mouse, space, 1-4 orders, B castle, O army, M map.')}</p>
   <button class="go" id="mHome">${TL('Ana menüye dön','Back to the main menu')}</button><button class="go" id="mX" style="background:rgba(20,26,34,.9);color:#f6ecd4">${TL('Devam et','Resume')}</button>`);
   pn.querySelector('#mX').onclick=closePanel;pn.querySelector('#mHome').onclick=()=>{try{localStorage.setItem('cephe_mod','big')}catch(e){}location.href=location.pathname}}
-let mapOpen=null;function openMap(){if(mapOpen){mapOpen.remove();mapOpen=null;return}const m=document.createElement('div');m.id='mMap';m.innerHTML=`<canvas width="${MAPN*2}" height="${MAPN*2}"></canvas><p>${TL('Kapatmak için dokun','Tap to close')}</p>`;UI.append(m);mapOpen=m;m.onclick=()=>{m.remove();mapOpen=null};drawMap(m.querySelector('canvas'),true)}
+// the big map: drag to move, pinch or wheel to zoom, ⌖ back to you. Castles with their owners, the ruins, your army and horses,
+// enemies close to you, this ring and (dashed) the next one, the way to your task
+let mapOpen=null,MAPHI=null;
+function zonePath(g,X,Z,s,Zn){const h=Zn.h,r=Math.min(Zn.r,h),x0=X(Zn.cx-h),x1=X(Zn.cx+h),z0=Z(Zn.cz-h),z1=Z(Zn.cz+h),rr=r*s;g.moveTo(x0+rr,z0);g.arcTo(x1,z0,x1,z1,rr);g.arcTo(x1,z1,x0,z1,rr);g.arcTo(x0,z1,x0,z0,rr);g.arcTo(x0,z0,x1,z0,rr);g.closePath()}
+function openMap(){if(mapOpen){mapOpen.close();return}if(!MAPHI)MAPHI=mapImage(SMALL?640:900);
+  const m=document.createElement('div');m.id='mMap';m.innerHTML=`<canvas></canvas><div class="mmT"></div><div class="mmB"><button data-z="1">＋</button><button data-z="-1">－</button><button data-z="0">⌖</button><button data-x="1">✕</button></div>
+  <div class="mmL"><span><i style="background:#fff;border:2px solid #ffe08a"></i>${TL('Senin kalen','Your castle')}</span><span><i style="background:#e8e2d4"></i>${TL('Boş kale','Free castle')}</span><span><i style="background:#555"></i>${TL('Yıkık','Ruined')}</span><span><b style="color:#d9b47a">◆</b>${TL('Harabe (sandık)','Ruin (chest)')}</span><span><b style="color:#ff4a3a">●</b>${TL('Düşman','Enemy')}</span><span><b style="color:#c46bff">▭</b>${TL('Alan / sıradaki','Ring / next')}</span></div>`;
+  UI.append(m);const cv=m.querySelector('canvas'),g=cv.getContext('2d'),u0=ME.units[0]||{x:0,z:0};
+  const st={cx:u0.x,cz:u0.z,s:0},P=new Map();let moved=0,W=0,H=0,dpr=1;
+  const fit=()=>Math.min(W,H)/(HALF*2)*.96,cl=()=>{st.s=clamp(st.s,fit(),3*dpr);const v=HALF;st.cx=clamp(st.cx,-v,v);st.cz=clamp(st.cz,-v,v)};
+  const size=()=>{dpr=Math.min(2,devicePixelRatio||1);W=cv.width=Math.round(innerWidth*dpr);H=cv.height=Math.round(innerHeight*dpr);if(!st.s)st.s=Math.max(fit(),Math.min(W,H)/800);cl()};size();
+  const zoomAt=(f,px,py)=>{const wx=st.cx+(px-W/2)/st.s,wz=st.cz+(py-H/2)/st.s;st.s*=f;cl();st.cx=wx-(px-W/2)/st.s;st.cz=wz-(py-H/2)/st.s;cl();draw()};
+  cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);P.set(e.pointerId,{x:e.clientX*dpr,y:e.clientY*dpr});moved=0});
+  cv.addEventListener('pointermove',e=>{const o=P.get(e.pointerId);if(!o)return;const n={x:e.clientX*dpr,y:e.clientY*dpr};
+    if(P.size===1){st.cx-=(n.x-o.x)/st.s;st.cz-=(n.y-o.y)/st.s;moved+=Math.abs(n.x-o.x)+Math.abs(n.y-o.y);cl()}
+    else if(P.size===2){const [a,b]=[...P.entries()],q=a[0]===e.pointerId?b[1]:a[1],d0=Math.hypot(o.x-q.x,o.y-q.y),d1=Math.hypot(n.x-q.x,n.y-q.y);if(d0>4)zoomAt(d1/d0,(n.x+q.x)/2,(n.y+q.y)/2);moved+=99}
+    P.set(e.pointerId,n);draw()});
+  const up=e=>{P.delete(e.pointerId)};cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
+  cv.addEventListener('wheel',e=>{e.preventDefault();zoomAt(e.deltaY<0?1.15:1/1.15,e.clientX*dpr,e.clientY*dpr)},{passive:false});
+  m.querySelectorAll('.mmB button').forEach(bt=>bt.onclick=e=>{e.stopPropagation();if(bt.dataset.x){close();return}const z=+bt.dataset.z;if(z)zoomAt(z>0?1.5:1/1.5,W/2,H/2);else{const u=ME.units[0];if(u){st.cx=u.x;st.cz=u.z;st.s=Math.max(st.s,Math.min(W,H)/500);cl();draw()}}});
+  const onR=()=>{size();draw()};addEventListener('resize',onR);
+  function close(){removeEventListener('resize',onR);m.remove();mapOpen=null}
+  function draw(){const t=gtime(),s=st.s,X=x=>(x-st.cx)*s+W/2,Z=z=>(z-st.cz)*s+H/2,u=ME.units[0];g.setTransform(1,0,0,1,0,0);g.fillStyle='#1d3b52';g.fillRect(0,0,W,H);g.imageSmoothingEnabled=true;g.imageSmoothingQuality='high';
+    g.drawImage(MAPHI,X(-HALF),Z(-HALF),HALF*2*s,HALF*2*s);
+    // a faint grid every 250 m
+    g.strokeStyle='rgba(255,255,255,.08)';g.lineWidth=1;for(let v=-HALF;v<=HALF;v+=250){g.beginPath();g.moveTo(X(v),Z(-HALF));g.lineTo(X(v),Z(HALF));g.moveTo(X(-HALF),Z(v));g.lineTo(X(HALF),Z(v));g.stroke()}
+    const zn=zoneAt(t);if(zn.h<HALF-25){g.fillStyle='rgba(110,30,150,.32)';g.beginPath();g.rect(0,0,W,H);zonePath(g,X,Z,s,zn);g.fill('evenodd');g.strokeStyle='#c46bff';g.lineWidth=3*dpr;g.beginPath();zonePath(g,X,Z,s,zn);g.stroke()}
+    if(t>SETUP_T&&zn.next<zn.h){g.setLineDash([8*dpr,6*dpr]);g.strokeStyle='rgba(255,255,255,.85)';g.lineWidth=2*dpr;g.beginPath();zonePath(g,X,Z,s,{h:Math.max(zn.next,.5),cx:zn.ncx,cz:zn.ncz,r:Math.min(zn.next*.3,70)});g.stroke();g.setLineDash([])}
+    const fs=Math.round(clamp(s*9,10*dpr,15*dpr));g.font=`700 ${fs}px Georgia`;g.textAlign='center';g.textBaseline='top';
+    for(const o of SITES){const x=X(o.x),y=Z(o.z);if(x<-20||y<-20||x>W+20||y>H+20)continue;const left=o.chests.some(c=>!c.taken),r=Math.max(4*dpr,s*(o.kind==='kale'?9:5));g.fillStyle=left?'#d9b47a':'rgba(140,130,115,.7)';g.strokeStyle='#2a2016';g.lineWidth=1.5*dpr;g.beginPath();g.moveTo(x,y-r);g.lineTo(x+r,y);g.lineTo(x,y+r);g.lineTo(x-r,y);g.closePath();g.fill();g.stroke()}
+    g.textBaseline='middle';for(const o of LMK.list){const x=X(o.x),y=Z(o.z);if(x<-20||y<-20||x>W+20||y>H+20)continue;g.font=`${Math.round(clamp(s*14,11*dpr,20*dpr))}px sans-serif`;g.fillText(o.kind==='kule'?'🗼':o.kind==='degirmen'?'🌾':o.kind==='kamp'?'⛺':'🗿',x,y)}g.textBaseline='top';g.font=`700 ${fs}px Georgia`;
+    for(const C of CASTLES){const sc=CS[C.k],x=X(C.x),y=Z(C.z),q=Math.max(9*dpr,CW*2*s),mine=sc.owner===ME.ix;g.fillStyle=sc.ruined?'#555':sc.owner==null?'#e8e2d4':'#'+PL[sc.owner].col.getHexString();g.strokeStyle=mine?'#ffe08a':'#111';g.lineWidth=(mine?3:1.5)*dpr;g.fillRect(x-q/2,y-q/2,q,q);g.strokeRect(x-q/2,y-q/2,q,q);
+      if(sc.ruined){g.strokeStyle='#222';g.beginPath();g.moveTo(x-q/2,y-q/2);g.lineTo(x+q/2,y+q/2);g.moveTo(x+q/2,y-q/2);g.lineTo(x-q/2,y+q/2);g.stroke()}
+      if(s>.35*dpr||mine){const nm=(mine?'👑 ':'')+(sc.owner!=null&&!mine?PL[sc.owner].name:(EN?C.en:C.ad));g.fillStyle='rgba(8,8,8,.75)';g.fillText(nm,x+1,y+q/2+4*dpr+1);g.fillStyle=mine?'#ffe08a':'#fff3d6';g.fillText(nm,x,y+q/2+4*dpr)}}
+    for(const h of ME.hs){if(h.rider!=null)continue;g.fillStyle='#a0703a';g.beginPath();g.arc(X(h.x),Z(h.z),3*dpr,0,7);g.fill()}
+    for(const p of PL){if(p.out)continue;for(const o of p.units){if(o.dead||o.k===0&&p===ME)continue;if(p!==ME&&(!u||Math.hypot(o.x-u.x,o.z-u.z)>90||o.hid))continue;g.fillStyle=p===ME?'#ffe08a':'#ff4a3a';g.beginPath();g.arc(X(o.x),Z(o.z),(o.k===0?5:3)*dpr,0,7);g.fill()}}
+    if(guide&&guide.i<GSTEPS.length){const o=GSTEPS[guide.i].at();if(o){const r=(9+3*Math.sin(performance.now()/200))*dpr;g.strokeStyle='#ffd36a';g.lineWidth=3*dpr;g.beginPath();g.arc(X(o.x),Z(o.z),r,0,7);g.stroke()}}
+    if(u&&!u.dead){const x=X(u.x),y=Z(u.z);g.save();g.translate(x,y);g.rotate(-cy);g.fillStyle='rgba(255,255,255,.16)';g.beginPath();g.moveTo(0,0);g.arc(0,0,60*dpr,-Math.PI/2-.45,-Math.PI/2+.45);g.closePath();g.fill();g.restore();
+      g.save();g.translate(x,y);g.rotate(Math.PI-u.a);g.fillStyle='#fff';g.strokeStyle='#000';g.lineWidth=2*dpr;g.beginPath();g.moveTo(0,-9*dpr);g.lineTo(6*dpr,7*dpr);g.lineTo(0,3*dpr);g.lineTo(-6*dpr,7*dpr);g.closePath();g.fill();g.stroke();g.restore()}
+    // a scale bar
+    {const m0=[50,100,250,500,1000].find(v=>v*s>70*dpr)||1000,bx=16*dpr,by=H-28*dpr;g.fillStyle='rgba(10,12,16,.7)';g.fillRect(bx-6*dpr,by-18*dpr,m0*s+12*dpr,28*dpr);g.fillStyle='#fff';g.fillRect(bx,by,m0*s,3*dpr);g.font=`700 ${12*dpr}px Georgia`;g.textAlign='left';g.fillText(m0+' m',bx,by-15*dpr)}
+    const T=m.querySelector('.mmT'),z2=zn,tx=t<SETUP_T?TL('Savaş başlamak üzere','The battle is about to begin'):z2.h<=0?TL('Alan kapandı','The ring has closed'):z2.shr?TL(`Alan daralıyor: ${Math.ceil(z2.wait)} sn`,`Ring closing: ${Math.ceil(z2.wait)} s`):TL(`Alan ${Math.ceil(z2.wait)} sn sonra daralır — kesik çizgiye gir`,`Ring closes in ${Math.ceil(z2.wait)} s — get inside the dashed line`);if(T.textContent!==tx)T.textContent=tx}
+  mapOpen={close,draw};draw()}
 function drawMap(c,big,pick){const g=c.getContext('2d'),W=c.width,t=gtime(),k=W/(HALF*2),X=x=>(x+HALF)*k,Z=z=>(z+HALF)*k;g.drawImage(MAPI,0,0,W,W);
   const z=zoneAt(t);if(z.h<HALF-25){g.fillStyle='rgba(120,40,160,.3)';g.fillRect(0,0,W,Z(-z.h));g.fillRect(0,Z(z.h),W,W-Z(z.h));g.fillRect(0,Z(-z.h),X(-z.h),z.h*2*k);g.fillRect(X(z.h),Z(-z.h),W-X(z.h),z.h*2*k);g.strokeStyle='#c46bff';g.lineWidth=Math.max(2,W/150);g.strokeRect(X(-z.h),Z(-z.h),z.h*2*k,z.h*2*k)}
   const s=W/(big||pick?32:26);g.font=`${Math.round(W/(pick?44:52))}px Georgia`;g.textAlign='center';
@@ -600,7 +681,7 @@ function drawMap(c,big,pick){const g=c.getContext('2d'),W=c.width,t=gtime(),k=W/
   if(!pick)for(const p of PL){if(p.out)continue;for(const u of p.units){if(u.dead)continue;if(p!==ME&&(!(Math.hypot(u.x-cam.x,u.z-cam.z)<90)||u.hid))continue;g.fillStyle=p===ME?(u.k===0?'#fff':'#ffe08a'):'#ff4a3a';g.beginPath();g.arc(X(u.x),Z(u.z),u.k===0?W/90:W/160,0,7);g.fill()}}}
 function drawMini(){const c=$('mMini'),g=c.getContext('2d'),W=c.width,t=gtime(),span=560,k=W/span,cx=cam.x,cz=cam.z;
   g.fillStyle='#1d3b52';g.fillRect(0,0,W,W);const sx=(cx-span/2+HALF)/(HALF*2)*MAPN,sz=(cz-span/2+HALF)/(HALF*2)*MAPN,sw=span/(HALF*2)*MAPN;g.drawImage(MAPI,sx,sz,sw,sw,0,0,W,W);
-  const X=x=>(x-cx)*k+W/2,Z=z=>(z-cz)*k+W/2,z=zoneAt(t);if(z.h<HALF-25){g.strokeStyle='#c46bff';g.lineWidth=3;g.strokeRect(X(-z.h),Z(-z.h),z.h*2*k,z.h*2*k)}
+  const X=x=>(x-cx)*k+W/2,Z=z=>(z-cz)*k+W/2,z=zoneAt(t);if(z.h<HALF-25){g.strokeStyle='#c46bff';g.lineWidth=3;g.beginPath();zonePath(g,X,Z,k,z);g.stroke()}if(t>SETUP_T&&z.next<z.h){g.setLineDash([5,4]);g.strokeStyle='rgba(255,255,255,.8)';g.lineWidth=1.5;g.beginPath();zonePath(g,X,Z,k,{h:Math.max(z.next,.5),cx:z.ncx,cz:z.ncz,r:Math.min(z.next*.3,70)});g.stroke();g.setLineDash([])}
   for(const C of CASTLES){const st=CS[C.k];g.fillStyle=st.ruined?'#555':st.owner==null?'#e8e2d4':'#'+PL[st.owner].col.getHexString();g.strokeStyle=st.owner===ME.ix?'#fff':'#000';g.lineWidth=2;g.fillRect(X(C.x)-7,Z(C.z)-7,14,14);g.strokeRect(X(C.x)-7,Z(C.z)-7,14,14)}
   for(const p of PL){if(p.out)continue;for(const u of p.units){if(u.dead||(p!==ME&&(Math.hypot(u.x-cx,u.z-cz)>90||u.hid)))continue;g.fillStyle=p===ME?(u.k===0?'#fff':'#ffe08a'):'#ff4a3a';g.beginPath();g.arc(X(u.x),Z(u.z),u.k===0?4:2.5,0,7);g.fill()}}
   g.save();g.translate(W/2,W/2);g.rotate(-cy);g.fillStyle='rgba(255,255,255,.13)';g.beginPath();g.moveTo(0,0);g.arc(0,0,W*.42,-Math.PI/2-.45,-Math.PI/2+.45);g.closePath();g.fill();g.restore()}
@@ -653,7 +734,18 @@ function slopeM(o,a,dt,mat){
 function gait(o,dt){if(o.mv>4.6){o.gp=((o.gp||0)+dt*o.mv/9.5)%1;return'run'}if(o.mv>.6){o.gp=((o.gp||0)+dt*o.mv/3.4)%1;return'walk'}return'idle'}
 const RY=-.56,RS=.8;     // the rider: where his waist sits on the saddle, and his size
 const RING=new THREE.InstancedMesh(new THREE.RingGeometry(1.05,1.4,36).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({transparent:true,opacity:.6,depthWrite:false,blending:THREE.AdditiveBlending}),24);RING.count=0;RING.frustumCulled=false;RING.setColorAt(0,new THREE.Color());scene.add(RING);let ringN=0;
-function cmdRing(u,c,t){if(ringN>=24)return;const s=(u.horse?1.7:1)*(1+.06*Math.sin(t*3+u.p));m5.compose(vp.set(u.x,Math.max(groundAt(u.x,u.z),-.9)+.12,u.z),q2.identity(),vs.set(s,1,s));RING.setMatrixAt(ringN,m5);RING.setColorAt(ringN++,c);vs.set(1,1,1)}
+// the ring lies along the slope so it never sinks into a hillside
+const _rn=new THREE.Vector3();
+function cmdRing(u,c,t){if(ringN>=24)return;const s=(u.horse?1.7:1)*(1+.06*Math.sin(t*3+u.p)),e=1.6,g0=groundAt(u.x,u.z),gx=groundAt(u.x+e,u.z)-groundAt(u.x-e,u.z),gz=groundAt(u.x,u.z+e)-groundAt(u.x,u.z-e);
+  _rn.set(-gx/(2*e),1,-gz/(2*e)).normalize();q2.setFromUnitVectors(UP,_rn);const lift=.14+Math.min(.6,Math.hypot(gx,gz)/(2*e)*.5*s);m5.compose(vp.set(u.x,Math.max(g0,-.9)+lift,u.z),q2,vs.set(s,1,s));RING.setMatrixAt(ringN,m5);RING.setColorAt(ringN++,c);vs.set(1,1,1)}
+// the commander carries a tall banner of his colour on his back, so he is known at a glance from his men
+const BPOLE=new THREE.InstancedMesh(new THREE.CylinderGeometry(.035,.045,2.3,6).translate(0,1.15,0),new THREE.MeshStandardMaterial({color:'#5a3c1e',roughness:.8}),24);
+const _fg=new THREE.PlaneGeometry(.75,.95,6,4).translate(.375,0,0);
+const BFLAG=new THREE.InstancedMesh(_fg,new THREE.MeshStandardMaterial({color:'#ffffff',roughness:.85,side:THREE.DoubleSide}),24);BFLAG.material.onBeforeCompile=sh=>{sh.uniforms.uT=BT;sh.vertexShader='uniform float uT;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nfloat ph=instanceMatrix[3].x*.7+instanceMatrix[3].z*.3;transformed.z+=sin(uT*5.+position.x*5.+ph)*.11*position.x/.75;')};
+const BT={value:0};const BTOP=new THREE.InstancedMesh(new THREE.OctahedronGeometry(.09,0),new THREE.MeshStandardMaterial({color:'#f2c33a',metalness:.8,roughness:.3}),24);
+for(const m of[BPOLE,BFLAG,BTOP]){m.count=0;m.frustumCulled=false;m.castShadow=true;scene.add(m)}BFLAG.setColorAt(0,new THREE.Color());let banN=0;const _bm=new THREE.Matrix4(),_bm2=new THREE.Matrix4();
+function banner(M,c){if(banN>=24)return;_bm.makeTranslation(0,.95,-.32).premultiply(M);_bm2.makeRotationX(-.12);_bm.multiply(_bm2);BPOLE.setMatrixAt(banN,_bm);_bm2.makeTranslation(.04,2.25,0);_bm2.premultiply(_bm);_bm2.multiply(new THREE.Matrix4().makeRotationY(Math.PI/2));BFLAG.setMatrixAt(banN,_bm2);BFLAG.setColorAt(banN,c);_bm2.makeTranslation(0,2.36,0).premultiply(_bm);BTOP.setMatrixAt(banN,_bm2);banN++}
+function bannerFlush(){for(const m of[BPOLE,BFLAG,BTOP]){m.count=banN;m.instanceMatrix.needsUpdate=true}if(BFLAG.instanceColor)BFLAG.instanceColor.needsUpdate=true;banN=0;BT.value=performance.now()/1000}
 function drawUnit(p,u,t,dt){const cls=u.k===0?p.cmd:(u.w==='arbalet'?'okcu':'sovalye'),sc=u.k===0?1.12:.94;
   q.setFromAxisAngle(UP,u.a);m4.compose(vp.set(u.x,u.y,u.z),q,vs.set(1,1,1));tc.copy(p.col);if(u.flash>0)tc.multiplyScalar(1+u.flash*1.6);if(u.hid&&p===ME)tc.multiplyScalar(.45);
   let clip='idle',ph=t*.9+u.ph;if(u.dead){clip='die';ph=Math.min(.999,(t-(u.dieT||t))/.9)}else if(u.act){clip='atk';ph=Math.min(.999,u.act.t/u.act.dur);
@@ -663,9 +755,9 @@ function drawUnit(p,u,t,dt){const cls=u.k===0?p.cmd:(u.w==='arbalet'?'okcu':'sov
   if(u.horse&&!u.dead){slopeM(u,u.a,dt,m4);const g=gait(u,dt),st=hPush(g,g==='idle'?t/6.25+u.ph:u.gp,m4,u.coat);
     // a mounted crossbowman stays a crossbowman: the archer rides with his crossbow; a swordsman with his sword
     const arc=cls==='okcu',rs=RS*sc;m5.compose(vp.set(0,st[0]+(arc?-.867*rs:RY),st[1]),q2.setFromAxisAngle(XA,st[2]),vs.set(rs,rs,rs));m6.copy(m4).multiply(m5);
-    chrPush(arc?'atliokcu':'binici',u.act?'atk':'idle',u.act?(u.act.v&&!arc?.999-ph*.94:ph):arc?0:.15,m6,tc,u.gunOp!=null?0:wLv(p,u),u.k===0?3:p.lv.z);if(u.k===0)cmdRing(u,tc,t);return}
+    chrPush(arc?'atliokcu':'binici',u.act||arc?'atk':'idle',u.act?(u.act.v&&!arc?.999-ph*.94:ph):arc?.1:.15,m6,tc,u.gunOp!=null?0:wLv(p,u),u.k===0?3:p.lv.z);if(u.k===0){cmdRing(u,tc,t);banner(m6,p.col)}return}
   if(u.k===0&&!u.dead)cmdRing(u,tc,t);
-  if(sc!==1){m5.makeScale(sc,sc,sc);m4.multiply(m5)}const wl=u.gunOp!=null?0:wLv(p,u);chrPush(cls,clip,ph,m4,tc,wl,u.k===0?3:p.lv.z);
+  if(sc!==1){m5.makeScale(sc,sc,sc);m4.multiply(m5)}const wl=u.gunOp!=null?0:wLv(p,u);chrPush(cls,clip,ph,m4,tc,wl,u.k===0?3:p.lv.z);if(u.k===0&&!u.dead)banner(m4,p.col);
   // the finest weapons give off sparks of their colour
   if(wl>=8&&!u.hid&&Math.random()<dt*(wl-6)*1.4&&Math.abs(u.x-cam.x)<60&&Math.abs(u.z-cam.z)<60)chips(u.x+Math.cos(u.a)*.45,u.y+1+Math.random()*.8,u.z-Math.sin(u.a)*.45,LVC[wl-1],1,.7)}
 let spectate=null;
@@ -690,14 +782,17 @@ function draw(dt,t){
   {vp.set(F.x,F.y+1.3,F.z);const dz=vp.clone().applyMatrix4(camera.matrixWorldInverse).z;vp.project(camera);const pr=renderer.getPixelRatio();FOC.value.set((vp.x+1)/2*innerWidth*pr,(vp.y+1)/2*innerHeight*pr,-dz,Math.min(innerWidth,innerHeight)*pr*.2)}
   updateGround(F.x,F.z);updateNodes(F.x,F.z,t);updateClutter(F.x,F.z,t);if(S.skyT)S.skyT.value=t;if(S.sky)S.sky.position.set(camera.position.x,0,camera.position.z);if(S.waterN){S.waterN.offset.x=t*.004;S.waterN.offset.y=t*.003;S.waterU.t.value=t}
   placeSun(F.x+Math.sin(started?cy:0)*-25,groundAt(F.x,F.z),F.z+Math.cos(started?cy:0)*-25);chrTime(t);if(chestDirty){chestDirty=false;drawChests(CS.map(c=>c.gold))}
-  const z=zoneAt(t);drawZone(z.h,t);{const u=ME.units[0];$('mOut').style.display=started&&u&&!u.dead&&outside(u.x,u.z,z.h)?'block':'none'}
+  const z=zoneAt(t);drawZone(z,t);{const u=ME.units[0];$('mOut').style.display=started&&u&&!u.dead&&outside(u.x,u.z,z)?'block':'none'}
   let li=0;
   for(const p of PL)for(const h of p.hs){if(!p.local&&h.tx!=null){const k=Math.min(1,dt*7);h.x=lerp(h.x,h.tx,k);h.z=lerp(h.z,h.tz,k);h.a+=angD(h.a,h.ta)*Math.min(1,dt*8)}if(h.rider!=null)continue;if(Math.hypot(h.x-F.x,h.z-F.z)>300)continue;
     slopeM(h,h.a,dt,m4);let g=gait(h,dt);if(g==='idle'&&((t*.03+h.ph)%1)<.6)g='graze';hPush(g,g==='idle'?t/6.25+h.ph:g==='graze'?t/3.2+h.ph:h.gp,m4,h.coat,false)}
   // the archers on the castle towers: one per tower the castle has paid for, drawing when it shoots
   for(const C of S.castles){const st=CS[C.k];if(st.ruined||Math.hypot(C.x-F.x,C.z-F.z)>260)continue;const ow=st.owner!=null?PL[st.owner]:null,n=ow?Math.min(4,1+ow.lv.k):2;
     for(let i=0;i<n;i++){if(st.ah[i]<=0)continue;const tp=C.tops[i],shot=st.shotI===i&&t-(st.shotT||-9)<.8;q.setFromAxisAngle(UP,shot?st.aim:C.a+[3.93,2.36,5.5,.79][i]);m4.compose(vp.set(tp.x,tp.y,tp.z),q,vs.set(1.3,1.3,1.3));vs.set(1,1,1);tc.copy(ow?ow.col:GREY);chrPush('okcu',shot?'atk':'idle',shot?(t-st.shotT)/.8:t*.8+i*.3,m4,tc,ow?1+ow.lv.s:1,0)}}
-  if(Math.random()<dt*3){for(const p of PL)for(const u of p.units)if(u.horse&&!u.dead&&u.mv>3&&Math.hypot(u.x-cam.x,u.z-cam.z)<45){snd('atli',u.x,u.z,45,.6);break}}
+  // hooves on land; in water nobody gallops: a horse swims with deep sloshing strokes, a man with lighter ones. Going in makes a splash
+  if(Math.random()<dt*3){let done=0;for(const p of PL){for(const u of p.units){if(u.dead||u.mv<.8||Math.hypot(u.x-cam.x,u.z-cam.z)>45)continue;const wet=groundAt(u.x,u.z)<-.9;
+    if(wet){snd('yuz',u.x,u.z,40,u.horse?.9:.6,u.horse?1:0);done=1;break}if(u.horse&&u.mv>3){snd('atli',u.x,u.z,45,.6);done=1;break}}if(done)break}}
+  for(const p of PL)for(const u of p.units){if(u.dead)continue;const wet=groundAt(u.x,u.z)<-.9;if(wet!==!!u.wet){if(wet&&u.wet!=null&&u.mv>.5){snd('cup',u.x,u.z,40,u.horse?.8:.5,u.horse?.8:.45);splashAt(u.x,u.z,u.horse?1.6:1)}u.wet=wet}}
   const meC=ME.units[0];
   for(const p of PL)for(const u of p.units){const dd=Math.hypot(u.x-F.x,u.z-F.z);if(dd>300)continue;if(u.dead&&t-(u.dieT||t)>12)continue;if(u.hid&&!u.dead&&p!==ME&&(!meC||meC.dead||Math.hypot(u.x-meC.x,u.z-meC.z)>AMB_SEE*2))continue;drawUnit(p,u,t,dt);
     if(!u.dead&&dd<90&&li<24&&(u.k===0||u.hp<u.mhp)){vp.set(u.x,u.y+(u.horse?2.9:2.3)*(u.k===0?1.1:1),u.z).project(camera);if(vp.z<1&&Math.abs(vp.x)<1.1&&Math.abs(vp.y)<1.1){const L=label(li++);L.className='mLab';L.style.display='block';L.style.left=((vp.x+1)/2*innerWidth)+'px';L.style.top=((1-vp.y)/2*innerHeight)+'px';
@@ -707,9 +802,11 @@ function draw(dt,t){
     const txt=(EN?C.en:C.ad)+(st.ruined?TL(' (yıkık)',' (ruined)'):st.owner!=null?' · '+PL[st.owner].name:TL(' · boş',' · empty'));const s=L.firstChild;if(s.textContent!==txt)s.textContent=txt;s.style.color=st.owner!=null?'#'+PL[st.owner].col.getHexString():'#f2ead8';L.lastChild.style.width='70px';L.lastChild.firstChild.style.width=clamp(st.hp/st.mhp*100,0,100)+'%';L.lastChild.firstChild.style.background=st.owner===ME.ix?'#5ad06a':'#e0a03a'}}
   for(const o of CHESTS){if(o.taken||li>=36)continue;const dd=Math.hypot(o.x-F.x,o.z-F.z);if(dd>30)continue;vp.set(o.x,groundAt(o.x,o.z)+1.7,o.z).project(camera);if(vp.z<1&&Math.abs(vp.x)<1.1&&Math.abs(vp.y)<1.1){const L=label(li++);L.className='mLab c';L.style.display='block';L.style.left=((vp.x+1)/2*innerWidth)+'px';L.style.top=((1-vp.y)/2*innerHeight)+'px';
     const txt=(o.lv>=10?'✨ ':'⚔️ ')+TL('Seviye ','Level ')+o.lv;const s=L.firstChild;if(s.textContent!==txt)s.textContent=txt;s.style.color=LVC[o.lv-1];L.lastChild.style.width='0px'}}
+  for(const o of drops){if(li>=40)break;const dd=Math.hypot(o.x-F.x,o.z-F.z);if(dd>40)continue;vp.set(o.x,Math.max(groundAt(o.x,o.z),0)+1.6,o.z).project(camera);if(vp.z<1&&Math.abs(vp.x)<1.1&&Math.abs(vp.y)<1.1){const L=label(li++);L.className='mLab c';L.style.display='block';L.style.left=((vp.x+1)/2*innerWidth)+'px';L.style.top=((1-vp.y)/2*innerHeight)+'px';
+    const txt='🗡️ '+TL('Seviye ','Level ')+o.lv;const s=L.firstChild;if(s.textContent!==txt)s.textContent=txt;s.style.color=LVC[o.lv-1];L.lastChild.style.width='0px'}}
   for(let i=li;i<labs.length;i++)if(labs[i])labs[i].style.display='none';
   {const L=[];for(const p of PL){if(p.out)continue;for(const g of p.guns){if(!p.local&&g.tx!=null){const k=Math.min(1,dt*6);const ox=g.x,oz=g.z;g.x=lerp(g.x,g.tx,k);g.z=lerp(g.z,g.tz,k);g.a+=angD(g.a,g.ta)*Math.min(1,dt*6);g.wh+=Math.hypot(g.x-ox,g.z-oz)/.6}if(Math.abs(g.x-F.x)<320&&Math.abs(g.z-F.z)<320)L.push(g)}}cannonsDraw(L,t)}
-  RING.count=ringN;RING.instanceMatrix.needsUpdate=true;if(RING.instanceColor)RING.instanceColor.needsUpdate=true;ringN=0;
+  bannerFlush();dropsDraw(t);LMK.tick(t);for(const f of LMK.fires)if(Math.random()<dt*1.5&&Math.abs(f.x-cam.x)<160&&Math.abs(f.z-cam.z)<160)smokeAt(f.x,groundAt(f.x,f.z)+1.2,f.z,1,1.1,'#8d8880');RING.count=ringN;RING.instanceMatrix.needsUpdate=true;if(RING.instanceColor)RING.instanceColor.needsUpdate=true;ringN=0;
   chrFlush();hFlush();
   guideArrow();
   for(let i=nums.length-1;i>=0;i--){const n=nums[i];n.t+=dt;if(n.t>1){n.el.remove();nums.splice(i,1);continue}vp.set(n.x,n.y+n.t*1.6,n.z).project(camera);n.el.style.left=((vp.x+1)/2*innerWidth)+'px';n.el.style.top=((1-vp.y)/2*innerHeight)+'px';n.el.style.opacity=1-n.t*n.t;n.el.style.display=vp.z<1?'block':'none'}
@@ -731,7 +828,7 @@ function hud(t){
   {const c0=ME.units[0],rb=$('mRide'),near=c0&&!c0.dead&&(freeHorse(ME,c0.x,c0.z,4.5)||foeHorse(ME,c0.x,c0.z,4.5)),can=c0&&!c0.dead&&(c0.horse||near||ME.hs.some(h=>h.rider==null));rb.style.display=can?'':'none';if(can){const tx=c0.horse?TL('İn','Dismount'):near?TL('Bin','Mount'):ME.hs.some(h=>h.call!=null)?TL('Geliyor','Coming'):TL('Çağır','Call');if(rb.lastChild.textContent!==tx)rb.lastChild.textContent=tx}}
   if(ME.capK!=null&&CS[ME.capK].cap){const c=CS[ME.capK];$('mTop').querySelector('small').textContent=TL(`🚩 Kale alınıyor: %${Math.round(c.cap.t/CAP_T*100)} — avluda kal`,`🚩 Taking the castle: ${Math.round(c.cap.t/CAP_T*100)}% — hold the yard`)}
   if(panel&&panel.draw)panel.draw();if(setup&&setup.draw)setup.draw();
-  drawMini();if(mapOpen)drawMap(mapOpen.querySelector('canvas'),true);
+  drawMini();if(mapOpen)mapOpen.draw();
   guideTick();
   if(tipT>0){tipT-=.25;if(tipT<=0)$('mTip').style.opacity=0}
   if(started&&!ended&&!ME.out&&alive===1)endScreen(true);
@@ -744,13 +841,13 @@ function tick(h,t){keyInput();
   for(const p of PL){if(!p.local||p.out)continue;
     const c0=p.units[0];if(c0&&c0.dead&&p.respawn&&t>=p.respawn&&p.home!=null&&!CS[p.home].ruined){p.respawn=0;const y=S.castles[p.home].yard;c0.dead=false;c0.horse=false;c0.hp=c0.mhp=UNIT[p.cmd].hp;c0.x=y.x;c0.z=y.z;c0.y=groundAt(y.x,y.z);c0.act=null;if(p===ME)tip(TL('Komutanın kalede dirildi','Your commander is back at the castle'),2)}
     else if(c0&&c0.dead&&(p.home==null||CS[p.home].ruined)){if(p.castles.length){p.home=p.castles[0]}else eliminate(p)}
-    for(const u of p.units)stepUnit(p,u,h,t);horseTick(p,h);gunTick(p,h);captureTick(p,h);lootTick(p);siteTick(p)}
+    for(const u of p.units)stepUnit(p,u,h,t);horseTick(p,h);gunTick(p,h);captureTick(p,h);lootTick(p);siteTick(p);dropTick(p)}
   fireTick(h);cannonsTick(h,t);boomTick(h);
   // castles: the towers shoot, the ring wears down castles left outside it
-  const z=zoneAt(t);for(const c of CS){if(!castleLocal(c)||c.ruined)continue;castleDefend(c,h);if(c.owner!=null){c.art+=h;if(c.art>40){c.art=0;const i=c.ah.findIndex((v,j)=>v<=0&&j<archN(c));if(i>=0){c.ah[i]=ARCH_HP;send('ar',{c:c.k,i})}}}const C=CASTLES[c.k];if(outside(C.x,C.z,z.h)&&c.owner!=null)hurtCastle(c,h*z.d*4,null)}
+  const z=zoneAt(t);for(const c of CS){if(!castleLocal(c)||c.ruined)continue;castleDefend(c,h);if(c.owner!=null){c.art+=h;if(c.art>40){c.art=0;const i=c.ah.findIndex((v,j)=>v<=0&&j<archN(c));if(i>=0){c.ah[i]=ARCH_HP;send('ar',{c:c.k,i})}}}const C=CASTLES[c.k];if(outside(C.x,C.z,z)&&c.owner!=null)hurtCastle(c,h*z.d*4,null)}
   separate();
   for(let i=stuck.length-1;i>=0;i--){if((stuck[i].t-=h)<=0)stuck.splice(i,1)}
-  for(let i=bolts.length-1;i>=0;i--){const b=bolts[i];b.t+=h;const s=50*h;b.x+=b.dx*s;b.z+=b.dz*s;if(b.t>.9)b.dy=(b.dy||0)-h*.55;b.y+=(b.dy||0)*s;const gy=groundAt(b.x,b.z);let hit=b.t>3||b.y<Math.max(gy,-.1)-.05;if(hit&&b.t<=3&&stuck.length<120)stuck.push({x:b.x,y:Math.max(gy,-.1)+.25,z:b.z,dx:b.dx,dy:b.dy||0,dz:b.dz,t:7});
+  for(let i=bolts.length-1;i>=0;i--){const b=bolts[i];b.t+=h;const s=50*h;b.x+=b.dx*s;b.z+=b.dz*s;if(b.t>.9)b.dy=(b.dy||0)-h*.55;b.y+=(b.dy||0)*s;const gy=groundAt(b.x,b.z);let hit=b.t>3||b.y<Math.max(gy,-.1)-.05;if(hit&&b.t<=3&&gy<-.4){chips(b.x,.05,b.z,'#e4f3ff',3,1);snd('cup',b.x,b.z,30,.35,0);b.t=9}if(hit&&b.t<=3&&stuck.length<120)stuck.push({x:b.x,y:Math.max(gy,-.1)+.25,z:b.z,dx:b.dx,dy:b.dy||0,dz:b.dz,t:7});
     if(!hit&&!b.vis&&b.by&&b.y>4)for(const C of S.castles){if(Math.abs(b.x-C.x)>CW+5||Math.abs(b.z-C.z)>CW+5)continue;const c=CS[C.k];if(c.ruined||c.owner===b.by.ix)continue;const n=archN(c);
       for(let a=0;a<n;a++){if(c.ah[a]<=0)continue;const tp=C.tops[a];if(Math.hypot(tp.x-b.x,tp.z-b.z)<1.2&&b.y>tp.y-.3&&b.y<tp.y+2.6){hurtArcher(C.k,a,b.dmg,b.by.ix>=0?b.by:null);chips(b.x,b.y,b.z,'#ffe8b0',3);hit=true;break}}if(hit)break}
     if(!hit&&!b.vis&&b.by){if(b.castle!=null){const C=CASTLES[b.castle];if(Math.abs(b.x-C.x)<CW+1&&Math.abs(b.z-C.z)<CW+1){hit=true;const c=CS[b.castle];if(castleLocal(c))hurtCastle(c,b.dmg,b.by.ix>=0?b.by:null);else send('ch',{c:c.k,d:+b.dmg.toFixed(1),by:b.by.ix})}}
@@ -769,5 +866,5 @@ let lastF=performance.now(),fps=60,slowT=0,fastT=0,dpr=renderer.getPixelRatio();
 function frame(){requestAnimationFrame(frame);const now=performance.now(),dt=Math.min(.1,(now-lastF)/1000);lastF=now;fps=lerp(fps,1/Math.max(dt,.001),.05);slowT=fps<(SMALL?45:30)?slowT+dt:0;fastT=fps>55?fastT+dt:0;if(slowT>3&&dpr>1){dpr=Math.max(1,dpr-.25);renderer.setPixelRatio(dpr);renderer.setSize(innerWidth,innerHeight,false);slowT=0}else if(fastT>8&&dpr<DPR0){dpr=Math.min(DPR0,dpr+.25);renderer.setPixelRatio(dpr);renderer.setSize(innerWidth,innerHeight,false);fastT=0}
   try{draw(dt,gtime())}catch(e){console.error(e)}}
 requestAnimationFrame(frame);
-window.__M={enterGun,leaveGun,gunFire,ruin,foeHorse,toggleTow,gunNear,_T,fx:{craterAdd,fireAdd,shellAdd,explodeFx},setHorse,buy,groundAt,siteVia,CHESTS,SITES,giveWeapon,siteAt,viaGate,localIn,fast:sec=>{for(let i=0;i<sec*20;i++){T0-=50;const t=gtime();tick(.05,t);if(i%20===0&&started)for(const p of PL)if(p.bot&&p.local)botPlan(p,t);if(i%5===0)hud(t)}},cam:(a,b,c)=>{cy=a;cp=b;cd=c},skip:s=>{T0-=s*1000},PL,ME,CS,S,zoneAt,gtime,action,input,setMode,buy,tapOrder,wantCastle,setHorse};
+window.__M={enterGun,leaveGun,gunFire,ruin,foeHorse,toggleTow,gunNear,_T,fx:{craterAdd,fireAdd,shellAdd,explodeFx},setHorse,buy,groundAt,siteVia,CHESTS,SITES,giveWeapon,siteAt,viaGate,localIn,fast:sec=>{for(let i=0;i<sec*20;i++){T0-=50;const t=gtime();tick(.05,t);if(i%20===0&&started)for(const p of PL)if(p.bot&&p.local)botPlan(p,t);if(i%5===0)hud(t)}},cam:(a,b,c)=>{cy=a;cp=b;cd=c},skip:s=>{T0-=s*1000},PL,ME,CS,S,zoneAt,gtime,action,input,setMode,buy,tapOrder,wantCastle,setHorse,mount,collide,nodesNear,get LMK(){return LMK},get guide(){return guide}};
 window.READY=true;

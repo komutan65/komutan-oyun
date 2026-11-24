@@ -101,7 +101,31 @@ export const SES={ctx:null,int:.2,last:{},ayar:{muzik:saved.muzik!==false,okcu:s
       // a wave rolling in and drawing back
       add('dalga',mk(3.2,(d,n)=>{for(let i=0;i<n;i++){const t=i/R;d[i]=nz()*Math.pow(Math.sin(Math.PI*t/3.2),2)*(.6+.4*Math.sin(t*7+v))}lp(d,.06)}));
       // a splash
-      add('su',mk(.7,(d,n)=>{for(let i=0;i<n;i++){const t=i/R;d[i]=nz()*env(t,.005,.12)+Math.sin(2*Math.PI*(500+900*Math.exp(-t*12))*t)*env(t,.01,.08)*.3*Math.random()}hp(d,.6);lp(d,.5)}))}},
+      add('su',mk(.7,(d,n)=>{for(let i=0;i<n;i++){const t=i/R;d[i]=nz()*env(t,.005,.12)+Math.sin(2*Math.PI*(500+900*Math.exp(-t*12))*t)*env(t,.01,.08)*.3*Math.random()}hp(d,.6);lp(d,.5)}))}
+    // water sounds. Everything that meets water has its own voice: a body in water is a slow slosh and gurgle, not hooves
+    const bub=(d,t0,f0,f1,dur,a)=>{const i0=Math.floor(t0*R),N=Math.min(d.length-i0,Math.floor(dur*R));let ph=0;for(let k=0;k<N;k++){const t=k/R,f=f0*Math.pow(f1/f0,t/dur);ph+=2*Math.PI*f/R;d[i0+k]+=Math.sin(ph)*Math.sin(Math.PI*t/dur)*a}};
+    for(let v=0;v<4;v++){
+      // a swimming stroke: an arm or a leg pushing through water — a soft rushing slosh, a gurgle of bubbles, the water falling back
+      add('yuz',mk(1.1,(d,n)=>{let sd=7+v*19;const rnd=()=>(sd=(sd*16807)%2147483647)/2147483647;const w=new Float32Array(n);
+        for(let i=0;i<n;i++){const t=i/R;w[i]=nz()*(Math.sin(Math.PI*Math.min(1,t/.45))**2*(t<.45?1:Math.exp(-(t-.45)/.12))+.5*env(Math.max(0,t-.5),.03,.18)*(t>.5?1:0))}
+        res(w,d,260+v*30,.02,1.3);res(w,d,520+v*40,.015,1);res(w,d,1150+v*60,.01,.6);for(let i=0;i<n;i++)d[i]+=w[i]*.05;lp(d,.35);
+        for(let k=0;k<7;k++)bub(d,.18+rnd()*.6,350+rnd()*500,800+rnd()*900,.02+rnd()*.03,.25+rnd()*.25)}));
+      // something dropping in: the "plop" of the cavity closing (a bubble whose pitch rises fast), then the splash falling back
+      add('cup',mk(1.2,(d,n)=>{let sd=3+v*29;const rnd=()=>(sd=(sd*16807)%2147483647)/2147483647;bub(d,0,260+v*40,900+v*120,.07,1.4);bub(d,.01,180,520,.11,.8);
+        const w=new Float32Array(n);for(let i=0;i<n;i++){const t=i/R;w[i]=nz()*(env(t,.004,.09)+.55*(t>.12?env(t-.12,.05,.3):0))}res(w,d,700,.01,1);res(w,d,1600,.008,.7);for(let i=0;i<n;i++)d[i]+=w[i]*.35;
+        for(let k=0;k<12;k++)bub(d,.1+rnd()*.7,500+rnd()*900,1100+rnd()*1500,.012+rnd()*.025,.2+rnd()*.3);hp(d,.97)}));
+    }
+    // a horse calling: a real whinny has two voices at once — a high, shaking cry that climbs and then falls, over a low hum —
+    // through the long nose (strong nasal resonances), then the breathy, pulsing nicker as it runs out of air
+    for(let v=0;v<3;v++)add('kisne2',mk(1.9,(d,n)=>{const src=new Float32Array(n);let p1=0,p2=0,sd=11+v*7;const rnd=()=>(sd=(sd*16807)%2147483647)/2147483647;const hi=720+v*90,top=hi*1.45,L=1.15+v*.12;
+      for(let i=0;i<n;i++){const t=i/R;let a1=0,a2=0,f1=hi,f2=260+v*20;
+        if(t<L){const u=t/L;f1=u<.15?hi+(top-hi)*(u/.15):top*Math.pow(.55,(u-.15)/.85);f1*=1+.045*Math.sin(2*Math.PI*(13-4*u)*t)+.01*(rnd()-.5);a1=Math.min(1,t/.05)*(u>.75?1-(u-.75)/.25*.6:1)*(.72+.28*Math.sin(2*Math.PI*(13-4*u)*t));a2=.35*Math.min(1,t/.1)*(1-u*.6);f2*=1+.03*Math.sin(2*Math.PI*6*t)}
+        else{const u=t-L;f2=140+20*Math.sin(u*9);a2=Math.max(0,.65*Math.exp(-u*2.6))*(.4+.6*Math.max(0,Math.sin(2*Math.PI*8.5*u)));f1=f2*2.02;a1=a2*.3}
+        p1+=f1/R;p2+=f2/R;const s1=2*(p1%1)-1,s2=2*(p2%1)-1;src[i]=s1*a1*.6+s2*a2*.7+nz()*(a1*.12+a2*.25)}
+      for(const[f,tau,a]of[[420,.012,.9],[980,.01,1],[1900,.007,.7],[2900,.005,.45],[4200,.003,.2]])res(src,d,f,tau,a);for(let i=0;i<n;i++)d[i]+=src[i]*.05;
+      // a snort at the end: air blown hard through the nostrils
+      const s0=Math.floor((L+.55)*R);let y=0;for(let i=s0;i<n;i++){const t=(i-s0)/R;y+=.3*(nz()-y);d[i]+=y*env(t,.01,.09)*(.6+.4*Math.sin(t*2*Math.PI*30))*1.6}
+      hp(d,.985)}));},
   play(k,vol=1,pan=0,rate=1,lp=0){const c=this.ctx,L=this.B&&this.B[k];if(!L||!L.length)return false;const s=c.createBufferSource(),g=c.createGain();s.buffer=L[(Math.random()*L.length)|0];s.playbackRate.value=rate*(.93+Math.random()*.14);g.gain.value=vol;
     let o=s;if(lp){const f=c.createBiquadFilter();f.type='lowpass';f.frequency.value=lp;s.connect(f);o=f}o.connect(g);o=g;
     if(c.createStereoPanner&&pan){const p=c.createStereoPanner();p.pan.value=Math.max(-1,Math.min(1,pan));g.connect(p);o=p}o.connect(this.sfx);s.start();return true},
@@ -150,6 +174,14 @@ export const SES={ctx:null,int:.2,last:{},ayar:{muzik:saved.muzik!==false,okcu:s
   dalga(v=1,p=0){if(this.ok('d',.4,'su'))this.play('dalga',.45*v,p)},
   kisne(v=1,p=0){if(this.ok('ks',5,'atli'))this.play('kisne',.5*v,p,.95+Math.random()*.1)},
   atli(v=1){if(!this.ok('a',1.5,'atli'))return;if(Math.random()<.1)this.kisne(v);if(!this.play('nal',.62*v)){const t=this.ctx.currentTime;[0,.1,.19,.27].forEach((d,i)=>this.hit(t+d,'bandpass',i%2?520:380,180,.55*v,.06,3))}},
-  su(v=1){if(!this.ok('s',2.6,'su'))return;if(!this.play('su',.1*v,0,1.15,1100)){const t=this.ctx.currentTime,r=Math.random();this.hit(t,'lowpass',520+r*260,150,.22*v,.45,.6)}},
+  // a body swimming: the bigger it is, the deeper and louder the slosh
+  yuz(v=1,p=0,big=0){if(this.ok('yz',big?.5:.4,'su'))this.play('yuz',(.32+.25*big)*v,p,big?.72+Math.random()*.1:1.05+Math.random()*.15)},
+  // something falling into water; size 0 (an arrow) to 1 (a cannonball, a balloon)
+  cup(v=1,p=0,size=.5){if(!this.ok('cp'+(size>.6?'b':'s'),size>.6?.15:.06,'su'))return;this.play('cup',(.3+.5*size)*v,p,1.35-size*.7);if(size>.5)this.play('su',.6*size*v,p,.8)},
+  // a blast in water: a muffled boom, the column of water going up and crashing back down
+  suBomba(v=1,p=0){if(!this.ok('sb',.15,'bomba'))return;const t=this.ctx.currentTime;this.tone(t,70,26,.9*v,.7);this.play('patla',.7*v,p,.7,700);this.play('cup',.8*v,p,.55);
+    setTimeout(()=>{try{this.play('su',.9*v,p,.7);this.play('dalga',.5*v,p,1.4)}catch(e){}},380)},
+  kisne2(v=1,p=0){if(this.ok('ks',4,'atli')&&!this.play('kisne2',.55*v,p,.94+Math.random()*.12))this.kisne(v,p)},
+  su(v=1){if(!this.ok('s',1.3,'su'))return;if(!this.play('yuz',.35*v,0,.9+Math.random()*.2)&&!this.play('su',.3*v,0,1.15,1100)){const t=this.ctx.currentTime,r=Math.random();this.hit(t,'lowpass',520+r*260,150,.22*v,.45,.6)}},
   para(){if(!this.ok('p',.06))return;const c=this.ctx,t=c.currentTime,o=c.createOscillator(),g=c.createGain();o.type='triangle';o.frequency.setValueAtTime(1320,t);o.frequency.setValueAtTime(1760,t+.06);o.connect(g);g.connect(this.sfx);this.env(g,t,.003,.22,.05,.16);o.start(t);o.stop(t+.3)}
 };

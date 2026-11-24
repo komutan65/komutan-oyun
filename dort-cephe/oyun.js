@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import {SES} from './ses.js?v=20261123i';
-import {loadHorses} from './meydan/at.js?v=20261123i';
+import {SES} from './ses.js?v=20261124a';
+import {loadHorses} from './meydan/at.js?v=20261124a';
 /* Dört Cephe. Each client simulates its own square (and any computer rivals);
    units sent to a player are simulated by that player. Others see 2 snapshots a second. */
 const A=window.ARENA,EN=window.LANG==='en',TL=(t,e)=>EN?e:t;
@@ -11,7 +11,7 @@ const num=(v,d=0)=>typeof v==='number'&&isFinite(v)?v:d;
 // ---------- rules ----------
 let BUILD_T={denizalti:16,gemi:20},TBUILD={ok:7,top:10,hava:9,roket:14,duvar:2.5},WMAX=12,RUNWAY_COST=200,MS_COST=100,MS_T=10,MS_HP=120,RUNWAY_T=12,YARD_COST=100,YARD_T=15,MAX_SHIPS=4,PLANE_T=12,SHIP_SEE=80,SHIP_STAND=95,SUB_TIME=16,WALL=3,START_MONEY=200*2.5,CASTLE_HP=500,TRICKLE=0.5,MAX_TOWERS=40;
 // a base trains one soldier at a time and fields a limited army, so nobody can flood the map
-let TRAIN={piyade:2,atli:3,koc:7,balon:6},POP={piyade:1,atli:1,koc:3,balon:2},POP_CAP=40,FUZE_CD=6,DBR_FIX=100,VER='52';
+let TRAIN={piyade:2,atli:3,koc:7,balon:6},POP={piyade:1,atli:1,koc:3,balon:2},POP_CAP=40,FUZE_CD=6,DBR_FIX=100,VER='53';
 // the lesson: an empty 1v1 map where nothing costs anything and nothing has to be waited for
 const TUT=!!(A&&A.tutorial);
 if(TUT){BUILD_T={denizalti:.5,gemi:.5};for(const k in TBUILD)TBUILD[k]=.2;RUNWAY_T=YARD_T=PLANE_T=.5;FUZE_CD=.5;TRAIN={piyade:.2,atli:.2,koc:.2,balon:.2}}
@@ -654,13 +654,17 @@ function fxAt(D,x,z,kind){
   if(f)f.call(SES,q.v,q.p);
 }
 function ambience(){
-  let horse=0,water=0;
+  let horse=0,water=0,swim=0,ship=0,wp=0;
   for(const D of P){
     if(!D.on)continue;
     const lo=local(D);for(const u of lo?D.units:D.remote.values()){
-      if(u.type!=='atli')continue;const mv=lo?u.moving&&!u.atk&&!u.done&&u.hp>0:Math.hypot(u.tx-u.x,u.tz-u.z)>.4;if(!mv)continue;const q=sndAt(u.x,u.z),v=q?q.v:0;
-      if(heightAt(u.x,u.z)<.3)water=Math.max(water,v);else horse=Math.max(horse,v)}}
-  if(horse>.06)SES.atli(horse);if(water>.06)SES.su(water);
+      if(u.type!=='atli'&&u.type!=='dalgic'&&u.type!=='piyade'&&u.type!=='gemi')continue;const mv=lo?u.moving&&!u.atk&&!u.done&&u.hp>0:Math.hypot(u.tx-u.x,u.tz-u.z)>.4;if(!mv)continue;const q=sndAt(u.x,u.z),v=q?q.v:0;if(v<.05)continue;
+      // in water nobody's hooves sound: a horse swims with deep sloshing strokes, a diver or a soldier with lighter ones, a ship pushes a wash ahead of it
+      const wet=heightAt(u.x,u.z)<.3&&!onBridge(u.x,u.z);if(u.type==='gemi'){ship=Math.max(ship,v);continue}
+      if(wet){if(u.type==='atli')water=Math.max(water,v);else swim=Math.max(swim,v);wp=q.p}else if(u.type==='atli')horse=Math.max(horse,v)}}
+  if(horse>.06)SES.atli(horse);if(water>.06)SES.yuz(water,wp,1);else if(swim>.06)SES.yuz(swim*.8,wp,0);if(ship>.08)SES.dalga(ship*.7);
+  // the sea itself: waves breaking now and then on the shores
+  if(Math.random()<.12)SES.dalga(.28+Math.random()*.15);
   SES.int=clamp(ME.units.length/14,.12,1);
 }
 // ---------- simulation ----------
@@ -827,7 +831,7 @@ function simDefender(D,dt){
         if(u.y<=Math.max(heightAt(u.x,u.z),0)+1){u.done=true;explode(u.x,u.z,4);crater(u.x,u.z,5);fxAt(D,u.x,u.z,'bomba');blast(D,u.x,u.z,10,110,30,u.from,50);if(D.dead)return}
         continue}
       u.y=20-13*u.fall*u.fall;const sy=surfaceY(u.x,u.z),roof=sy>Math.max(heightAt(u.x,u.z),0)+1.2;
-      if(u.y<=sy+1){u.done=true;boom(u.x,sy+3,u.z,7,'#ff7a2a');boom(u.x,sy+5,u.z,4,'#ffd27a');if(roof){burst(u.x,sy+1,u.z,14,['#8f8a7c','#6e6a60','#3b2d24'],9,1.2,.3);hurtLauncher(D,u.x,u.z,90)}else{explode(u.x,u.z,3);crater(u.x,u.z,4)}fxAt(D,u.x,u.z,'bomba');blast(D,u.x,u.z,8,90,U.dmg*2,u.from,45);if(D.dead)return}
+      if(u.y<=sy+1){u.done=true;const sea=!roof&&heightAt(u.x,u.z)<.2;boom(u.x,sy+3,u.z,7,'#ff7a2a');boom(u.x,sy+5,u.z,4,'#ffd27a');if(roof){burst(u.x,sy+1,u.z,14,['#8f8a7c','#6e6a60','#3b2d24'],9,1.2,.3);hurtLauncher(D,u.x,u.z,90)}else if(sea){splash(u.x,u.z,6);ripple(u.x,u.z,10);ripple(u.x,u.z,5);puff(u.x,1,u.z,10,5,.9,1.6,1.4)}else{explode(u.x,u.z,3);crater(u.x,u.z,4)}fxAt(D,u.x,u.z,sea?'suBomba':'bomba');blast(D,u.x,u.z,8,90,U.dmg*2,u.from,45);if(D.dead)return}
       continue}
     if(u.type==='gemi'){          // sail into range of the target's coast, then shell it
       if(u.ret){u.s+=U.sp*1.2*dt;const p=pointOn(u.path,u.s);u.x=p.x;u.z=p.z;u.moving=true;if(u.s>=u.end){u.done=true;const m=Math.round(U.cost/2);if(u.from!==D.seat){refund(u.from,m);continue}D.money+=m;if(D===ME){floats.push({x:u.x,z:u.z,t:0,txt:'+'+m});SES.para();tip(TL('Gemi limana döndü','Ship is back in port'))}}continue}
@@ -2432,7 +2436,7 @@ const SHOCK=[];for(let i=0;i<8;i++){const m=new THREE.Mesh(new THREE.RingGeometr
 let shockI=0,quake=0;
 function explode(x,z,big){
   const y=Math.max(heightAt(x,z),.2),wet=shoreOf(x,z)<WL;
-  if(wet){splash(x,z,big*1.6);const q=sndAt(x,z);if(q)SES.dalga(.6*q.v,q.p)}else{
+  if(wet){splash(x,z,big*1.6);const q=sndAt(x,z);if(q){if(big>1.2)SES.suBomba(.8*q.v,q.p);else SES.cup(.8*q.v,q.p,clamp(big*.6,.2,1))}}else{
     flame(x,y+1,z,4+big*3,.35);
     for(let i=0;i<Math.round(3+big*2);i++){const a=Math.random()*6.28,s=big*(2+Math.random()*3);flame(x,y+1,z,1.8+big*.9,.5,Math.cos(a)*s,s*.8,Math.sin(a)*s)}
     burst(x,y+1,z,Math.round(9*big),['#5b4a38','#3a2f26','#7a6650'],big*3,1.1,.28+big*.05);
@@ -2538,7 +2542,13 @@ function aimRemote(dt){
     for(const t of D.towers)if(t.rt&&HEAD[t.type])t.yaw=turnTo(t.yaw||0,Math.atan2(-(t.rt.z-t.z),t.rt.x-t.x),HEAD[t.type].rate*dt)}
 }
 // ---------- bridges and the fountain ----------
-function bridgeSpot(p){
+// a bridge's two ends are pulled in until they rest on the bank at deck height, so neither end runs into the ground
+function trimSpan(sp){const {a,b}=sp,l=Math.hypot(b.x-a.x,b.z-a.z),dx=(b.x-a.x)/l,dz=(b.z-a.z)/l;let ta=0,tb=0;
+  const H=(x,z)=>Math.max(heightAt(x,z),heightAt(x-dz*2.6,z+dx*2.6),heightAt(x+dz*2.6,z-dx*2.6));
+  while(ta<l*.42&&H(a.x+dx*ta,a.z+dz*ta)>1.0)ta+=.4;while(tb<l*.42&&H(b.x-dx*tb,b.z-dz*tb)>1.0)tb+=.4;ta=Math.max(0,ta-.6);tb=Math.max(0,tb-.6);
+  return{a:{x:+(a.x+dx*ta).toFixed(1),z:+(a.z+dz*ta).toFixed(1)},b:{x:+(b.x-dx*tb).toFixed(1),z:+(b.z-dz*tb).toFixed(1)}}}
+function bridgeSpot(p){const r=bridgeSpot0(p);return r?trimSpan(r):null}
+function bridgeSpot0(p){
   if(DUEL){const c=p.x<0?-48:48;if(Math.abs(p.x-c)>18||Math.abs(p.z)>64)return null;const a={x:c-24,z:Math.round(p.z)},b={x:c+24,z:a.z};
     if(shoreOf(a.x,a.z)<WL+3||shoreOf(b.x,b.z)<WL+3||DBR.some(o=>Math.abs(o.a.z-a.z)<14&&Math.sign(o.a.x)===Math.sign(c))||bridges.some(o=>Math.min(segD(a.x,a.z,o),segD(b.x,b.z,o))<16))return null;return{a,b}}
   const hor=Math.abs(p.x-rvW(p.z))<RIVER+WL+4&&Math.abs(p.z)>30,ver=Math.abs(p.z-rvW(-p.x))<RIVER+WL+4&&Math.abs(p.x)>30;if(!hor&&!ver)return null;
@@ -3393,4 +3403,4 @@ await (async function warmUp(){
   for(const T of TPL.values())T.dirty=T.mem=true;
 })();
 requestAnimationFrame(frame);
-window.__O={get tutSpot(){return tutSpot},get tutHint(){return tutHint},unitById,laneZ,setGfx,canBuild,get tutI(){return tutI},TS,tutGo,lockOrder,spawn,muster,BLD,TOWERS,KEEP,popOf,trainBuy,TQ,RALLY,atRally,orderRally,LAUNCH,DBR,breakDuelBridge,fixDuelBridge,landRoute,laneAsk,onChat,chatSend,FTILES,forestLOD,openRally,drawRally,report,applyCmd,order,myUnits,seaRoute,fleet,buildYard,landNear,tap,endBox,unitAtScreen,get SEL(){return SEL},set SEL(v){SEL=v},DOCK2:0,RWY,DOCK,PROPS,SHELLS,buildRunway,bridges,addBridge,breakBridge,breakFountain,get fountainDown(){return fountainDown},setAlly,allied,nav,navRoute,shoreOf,explode,fireAt,setTarget,set route(v){route=v},ALLY,P,sim,sendUnit,addTower,ME,finish,kill:eliminate,crater,sunk,heightAt,unitY,UNITS,camera,get ended(){return ended},get fps(){return fps},view};
+window.__O={bridgeSpot,bridgeSpot0,heightAt,get tutSpot(){return tutSpot},get tutHint(){return tutHint},unitById,laneZ,setGfx,canBuild,get tutI(){return tutI},TS,tutGo,lockOrder,spawn,muster,BLD,TOWERS,KEEP,popOf,trainBuy,TQ,RALLY,atRally,orderRally,LAUNCH,DBR,breakDuelBridge,fixDuelBridge,landRoute,laneAsk,onChat,chatSend,FTILES,forestLOD,openRally,drawRally,report,applyCmd,order,myUnits,seaRoute,fleet,buildYard,landNear,tap,endBox,unitAtScreen,get SEL(){return SEL},set SEL(v){SEL=v},DOCK2:0,RWY,DOCK,PROPS,SHELLS,buildRunway,bridges,addBridge,breakBridge,breakFountain,get fountainDown(){return fountainDown},setAlly,allied,nav,navRoute,shoreOf,explode,fireAt,setTarget,set route(v){route=v},ALLY,P,sim,sendUnit,addTower,ME,finish,kill:eliminate,crater,sunk,heightAt,unitY,UNITS,camera,get ended(){return ended},get fps(){return fps},view};

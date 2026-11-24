@@ -1,7 +1,7 @@
 /* Büyük Harita — field cannons: the gun on its carriage, the balls in flight, and what they leave behind:
    scorched craters and fires that burn for a while. Drawing only; the rules live in oyun.js. */
 import * as THREE from 'three';
-import {S,groundAt,merge,col} from './sahne.js';
+import {S,groundAt,merge,col} from './sahne.js?v=20261124a';
 const CAP=48;
 let T=null;
 const m4=new THREE.Matrix4(),m5=new THREE.Matrix4(),q=new THREE.Quaternion(),q2=new THREE.Quaternion(),vp=new THREE.Vector3(),vs=new THREE.Vector3(),UP=new THREE.Vector3(0,1,0),XA=new THREE.Vector3(1,0,0),ZA=new THREE.Vector3(0,0,1),tc=new THREE.Color();
@@ -27,15 +27,15 @@ export function makeCannons(){
   T={body:mk(body,CAP),wheel:mk(wheel,CAP*2),shaft:mk(shaft,CAP),ball,crater,flame,smoke,shells:[],craters:[],fires:[],parts:[]}}
 // a ball in flight from (x0,y0,z0) to (x1,z1), arriving after dur seconds; on landing hit(x,z) is called
 export function shellAdd(x0,y0,z0,x1,z1,dur,hit,apex){if(!T)return;T.shells.push({x0,y0,z0,x1,z1,y1:Math.max(groundAt(x1,z1),-.2),t:0,dur,hit,apex});puff(x0,y0,z0,10,2.2,'#e8e2d6',.9);burst(x0,y0,z0,6,.9)}
-export function craterAdd(x,z,r){if(!T)return;if(T.craters.length>=90)T.craters.shift();const d=1.2,nx=groundAt(x-d,z)-groundAt(x+d,z),nz=groundAt(x,z-d)-groundAt(x,z+d);T.craters.push({x,z,y:groundAt(x,z),r,a:Math.random()*6.283,nx:nx/(2*d),nz:nz/(2*d)})}
+export function craterAdd(x,z,r){if(!T||groundAt(x,z)<-.4)return;if(T.craters.length>=90)T.craters.shift();const d=1.2,nx=groundAt(x-d,z)-groundAt(x+d,z),nz=groundAt(x,z-d)-groundAt(x,z+d);T.craters.push({x,z,y:groundAt(x,z),r,a:Math.random()*6.283,nx:nx/(2*d),nz:nz/(2*d)})}
 // a fire burning on the ground for 'life' seconds
-export function fireAdd(x,z,life,r=1.6){if(!T)return;if(T.fires.length>=24)T.fires.shift();T.fires.push({x,z,y:groundAt(x,z),t:0,life,r})}
+export function fireAdd(x,z,life,r=1.6){if(!T||groundAt(x,z)<-.4)return;if(T.fires.length>=24)T.fires.shift();T.fires.push({x,z,y:groundAt(x,z),t:0,life,r})}
 export const fires=()=>T?T.fires:[];
 export function smokeAt(x,y,z,n=1,size=1.4,c='#4a4440'){if(T)puff(x,y,z,n,1.2,c,size)}
 export function sparks(x,y,z,n=10,size=.9){if(T)burst(x,y,z,n,size)}
 function puff(x,y,z,n,sp,c,size){for(let i=0;i<n;i++){if(T.parts.length>=560)T.parts.shift();T.parts.push({k:1,x,y,z,vx:(Math.random()-.5)*sp,vy:.6+Math.random()*sp*.5,vz:(Math.random()-.5)*sp,t:0,life:1.6+Math.random()*1.4,s:size*(.6+Math.random()*.6),c})}}
 function burst(x,y,z,n,size){for(let i=0;i<n;i++){if(T.parts.length>=560)T.parts.shift();T.parts.push({k:0,x,y,z,vx:(Math.random()-.5)*6,vy:1+Math.random()*4,vz:(Math.random()-.5)*6,t:0,life:.35+Math.random()*.3,s:size*(.5+Math.random()*.7),c:Math.random()<.5?'#ffd27a':'#ff7a2a'})}}
-export function explodeFx(x,z){if(!T)return;const y=groundAt(x,z);burst(x,y+.6,z,16,1.4);puff(x,y+.5,z,16,4,'#5a5148',1.3);puff(x,y+.3,z,10,6,'#8a6a48',.7)}
+export function explodeFx(x,z){if(!T)return;const g=groundAt(x,z),wet=g<-.4,y=Math.max(g,0);if(wet){puff(x,y+.4,z,18,5,'#eef5fa',1.2);puff(x,y+1.5,z,8,3,'#d8e6ee',.8);return}burst(x,y+.6,z,16,1.4);puff(x,y+.5,z,16,4,'#5a5148',1.3);puff(x,y+.3,z,10,6,'#8a6a48',.7)}
 export function cannonsTick(dt,t){if(!T)return;
   for(let i=T.shells.length-1;i>=0;i--){const s=T.shells[i];s.t+=dt;if(s.t>=s.dur){T.shells.splice(i,1);explodeFx(s.x1,s.z1);if(s.hit)s.hit(s.x1,s.z1)}}
   for(let i=T.fires.length-1;i>=0;i--){const f=T.fires[i];f.t+=dt;if(f.t>f.life){T.fires.splice(i,1);continue}const k=1-f.t/f.life;

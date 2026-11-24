@@ -75,7 +75,7 @@ async function enter(m){
   onlineAt(m.tutorial?'egitim':'oyun');
   window.ARENA={seat,id,room:String(m.room),players:m.players,sb,duel:!!m.duel,tutorial:!!m.tutorial,big:!!m.big,seed:m.seed>>>0,t0:+m.t0||0};
   $('lStatus').textContent=L('Harita hazırlanıyor…','Preparing the map…');
-  try{if(m.big){$('lobby').hidden=true;await import('./meydan/oyun.js?v=20261123i')}else{await import('./oyun.js?v=20261123i');$('lobby').hidden=true}}
+  try{if(m.big){$('lobby').hidden=true;await import('./meydan/oyun.js?v=20261124a')}else{await import('./oyun.js?v=20261124a');$('lobby').hidden=true}}
   catch(e){console.error(e);err(L('Oyun yüklenemedi. Sayfayı yenile.','The game failed to load. Refresh the page.'))}
 }
 function join(name){
@@ -130,12 +130,13 @@ $('lCopy').onclick=async()=>{
   try{await navigator.clipboard.writeText(code);$('lCopy').textContent=L('Kopyalandı','Copied')}catch(e){}
 };
 // mode switch: four corners, or one against one
-function setMode(d,b){
-  duel=!!d&&!b;big=!!b;MAXP=big?20:duel?2:4;$('m4').classList.toggle('on',!duel&&!big);$('m2').classList.toggle('on',duel);if($('m20'))$('m20').classList.toggle('on',big);
+var lastDuel=false;
+function setMode(d,b){if(!b)lastDuel=!!d;
+  duel=!!d&&!b;big=!!b;MAXP=big?20:duel?2:4;$('m4').classList.toggle('on',!duel&&!big);$('m2').classList.toggle('on',duel);if($('m20'))$('m20').classList.toggle('on',big);if($('mcK'))$('mcK').classList.toggle('on',!big);if($('lTut'))$('lTut').hidden=big;
   if(big){$('lBots').textContent=L('Yapay zekayla oyna (20 kişi)','Play with the computer (20)');$('lInvite').textContent=L('Arkadaşlarınla oyna','Play with friends');$('lPlay').textContent=L('OYNA','PLAY');return}
   $('lBots').textContent=d?L('Yapay zekaya karşı 1v1','1v1 against the computer'):L('Yapay zekaya karşı oyna','Play against the computer');$('lInvite').textContent=d?L('Arkadaşınla 1v1','1v1 with a friend'):L('Arkadaşlarınla oyna','Play with friends');$('lPlay').textContent=d?L('1v1 OYNA','PLAY 1v1'):L('OYNA','PLAY');
 }
-$('m4').onclick=()=>setMode(false,false);$('m2').onclick=()=>setMode(true,false);if($('m20'))$('m20').onclick=()=>setMode(false,true);
+$('m4').onclick=e=>{e.stopPropagation();setMode(false,false)};$('m2').onclick=e=>{e.stopPropagation();setMode(true,false)};if($('mcK'))$('mcK').onclick=()=>{if(big)setMode(lastDuel,false)};if($('m20'))$('m20').onclick=()=>setMode(false,true);
 for(const b of document.querySelectorAll('#lLang button'))b.onclick=()=>{LANG=b.dataset.l;try{localStorage.setItem('cephe_dil',LANG)}catch(e){}applyLang()};
 applyLang();
 if(AUTO&&AUTO.m){$('lHome').hidden=true;$('lMode').hidden=true;$('lQueue').hidden=false;$('lCancel').hidden=true;enter(AUTO.m)}
